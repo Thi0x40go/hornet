@@ -1,0 +1,41 @@
+# Binaries & build artifacts
+/target/
+/bin/
+hornet
+hornet-server
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Databases & local data
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+
+# Local configuration, secrets, & persistence
+.env
+.env.*
+*.env
+connections.json
+persistence*.json
+*.sql.tmp
+
+# Logs
+*.log
+logs/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
