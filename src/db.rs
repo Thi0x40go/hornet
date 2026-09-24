@@ -35,7 +35,12 @@ impl DbManager {
         Ok(conns)
     }
 
-    pub async fn add_connection(&mut self, name: &str, r#type: &str, url_str: &str) -> Result<Vec<ConnectionParams>, String> {
+    pub async fn add_connection(
+        &mut self,
+        name: &str,
+        r#type: &str,
+        url_str: &str,
+    ) -> Result<Vec<ConnectionParams>, String> {
         let param = ConnectionParams {
             id: name.to_string(),
             name: name.to_string(),
@@ -97,7 +102,10 @@ impl DbManager {
                     .map_err(|e| format!("SQLite connection failed: {}", e))?;
                 Ok(DbPool::Sqlite(pool))
             }
-            other => Err(format!("Unsupported database driver: '{}'. Supported: postgres, mysql, sqlite", other)),
+            other => Err(format!(
+                "Unsupported database driver: '{}'. Supported: postgres, mysql, sqlite",
+                other
+            )),
         }
     }
 
@@ -106,7 +114,9 @@ impl DbManager {
             return Ok(());
         }
 
-        let param = self.connections.get(conn_id)
+        let param = self
+            .connections
+            .get(conn_id)
             .cloned()
             .ok_or_else(|| format!("Connection '{}' not found", conn_id))?;
 
@@ -122,13 +132,22 @@ impl DbManager {
         let start = Instant::now();
         match pool {
             DbPool::Postgres(p) => {
-                sqlx::query("SELECT 1;").fetch_one(p).await.map_err(|e| e.to_string())?;
+                sqlx::query("SELECT 1;")
+                    .fetch_one(p)
+                    .await
+                    .map_err(|e| e.to_string())?;
             }
             DbPool::MySql(p) => {
-                sqlx::query("SELECT 1;").fetch_one(p).await.map_err(|e| e.to_string())?;
+                sqlx::query("SELECT 1;")
+                    .fetch_one(p)
+                    .await
+                    .map_err(|e| e.to_string())?;
             }
             DbPool::Sqlite(p) => {
-                sqlx::query("SELECT 1;").fetch_one(p).await.map_err(|e| e.to_string())?;
+                sqlx::query("SELECT 1;")
+                    .fetch_one(p)
+                    .await
+                    .map_err(|e| e.to_string())?;
             }
         }
 
@@ -148,12 +167,16 @@ impl DbManager {
                     .fetch_one(p)
                     .await
                     .map_err(|e| e.to_string())?;
-                let current_db: String = cur_row.try_get(0).unwrap_or_else(|_| "postgres".to_string());
+                let current_db: String = cur_row
+                    .try_get(0)
+                    .unwrap_or_else(|_| "postgres".to_string());
 
-                let rows = sqlx::query("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname;")
-                    .fetch_all(p)
-                    .await
-                    .map_err(|e| e.to_string())?;
+                let rows = sqlx::query(
+                    "SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname;",
+                )
+                .fetch_all(p)
+                .await
+                .map_err(|e| e.to_string())?;
 
                 let mut avail_dbs = Vec::new();
                 for r in rows {
@@ -168,7 +191,8 @@ impl DbManager {
                     .fetch_one(p)
                     .await
                     .map_err(|e| e.to_string())?;
-                let current_db: String = cur_row.try_get(0).unwrap_or_else(|_| "default".to_string());
+                let current_db: String =
+                    cur_row.try_get(0).unwrap_or_else(|_| "default".to_string());
 
                 let rows = sqlx::query("SHOW DATABASES;")
                     .fetch_all(p)
@@ -183,14 +207,18 @@ impl DbManager {
                 }
                 Ok((current_db, avail_dbs))
             }
-            DbPool::Sqlite(_) => {
-                Ok(("main".to_string(), vec!["main".to_string()]))
-            }
+            DbPool::Sqlite(_) => Ok(("main".to_string(), vec!["main".to_string()])),
         }
     }
 
-    pub async fn select_database(&mut self, conn_id: &str, database: &str) -> Result<StructureResponse, String> {
-        let param = self.connections.get(conn_id)
+    pub async fn select_database(
+        &mut self,
+        conn_id: &str,
+        database: &str,
+    ) -> Result<StructureResponse, String> {
+        let param = self
+            .connections
+            .get(conn_id)
             .cloned()
             .ok_or_else(|| format!("Connection '{}' not found", conn_id))?;
 
@@ -258,17 +286,22 @@ impl DbManager {
                 let mut schema_map: HashMap<String, Vec<StructureItem>> = HashMap::new();
 
                 for r in rows {
-                    let schema: String = r.try_get("table_schema").unwrap_or_else(|_| "public".to_string());
+                    let schema: String = r
+                        .try_get("table_schema")
+                        .unwrap_or_else(|_| "public".to_string());
                     let name: String = r.try_get("table_name").unwrap_or_default();
                     let t_type: String = r.try_get("table_type").unwrap_or_default();
                     let item_type = if t_type == "VIEW" { 2 } else { 1 };
 
-                    schema_map.entry(schema.clone()).or_default().push(StructureItem {
-                        name,
-                        schema: Some(schema),
-                        r#type: item_type,
-                        children: None,
-                    });
+                    schema_map
+                        .entry(schema.clone())
+                        .or_default()
+                        .push(StructureItem {
+                            name,
+                            schema: Some(schema),
+                            r#type: item_type,
+                            children: None,
+                        });
                 }
 
                 for (schema, tables) in schema_map {
@@ -293,7 +326,9 @@ impl DbManager {
 
                 let mut tables = Vec::new();
                 for r in rows {
-                    let schema: String = r.try_get("table_schema").unwrap_or_else(|_| "default".to_string());
+                    let schema: String = r
+                        .try_get("table_schema")
+                        .unwrap_or_else(|_| "default".to_string());
                     let name: String = r.try_get("table_name").unwrap_or_default();
                     let t_type: String = r.try_get("table_type").unwrap_or_default();
                     let item_type = if t_type == "VIEW" { 2 } else { 1 };
@@ -365,7 +400,12 @@ impl DbManager {
         })
     }
 
-    pub async fn get_columns(&mut self, conn_id: &str, schema: &str, table: &str) -> Result<Vec<ColumnInfo>, String> {
+    pub async fn get_columns(
+        &mut self,
+        conn_id: &str,
+        schema: &str,
+        table: &str,
+    ) -> Result<Vec<ColumnInfo>, String> {
         self.ensure_connected(conn_id).await?;
         let pool = self.pools.get(conn_id).ok_or("Pool not found")?;
 
@@ -543,55 +583,91 @@ fn format_pg_value(row: &PgRow, idx: usize) -> String {
 
     let type_name = row.column(idx).type_info().name();
     match type_name {
-        "BOOL" | "BOOLEAN" => row.try_get::<bool, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "INT2" | "SMALLINT" => row.try_get::<i16, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "INT4" | "INT" | "INTEGER" => row.try_get::<i32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "INT8" | "BIGINT" => row.try_get::<i64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "OID" => row.try_get::<sqlx::postgres::types::Oid, _>(idx).map(|v| v.0.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "FLOAT4" | "REAL" => row.try_get::<f32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "FLOAT8" | "DOUBLE PRECISION" => row.try_get::<f64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "NUMERIC" | "DECIMAL" => {
-            row.try_get::<rust_decimal::Decimal, _>(idx)
-                .map(|v| v.to_string())
-                .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
-                .unwrap_or_else(|_| "ERR".to_string())
-        }
-        "TEXT" | "VARCHAR" | "CHAR" | "BPCHAR" | "NAME" | "CITEXT" => {
-            row.try_get::<String, _>(idx).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "JSON" | "JSONB" => {
-            row.try_get::<serde_json::Value, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "UUID" => {
-            row.try_get::<uuid::Uuid, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "DATE" => {
-            row.try_get::<chrono::NaiveDate, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "TIME" => {
-            row.try_get::<chrono::NaiveTime, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "TIMESTAMP" => {
-            row.try_get::<chrono::NaiveDateTime, _>(idx).map(|v| v.to_string())
-                .or_else(|_| row.try_get::<chrono::DateTime<chrono::Utc>, _>(idx).map(|v| v.to_string()))
-                .unwrap_or_else(|_| "ERR".to_string())
-        }
-        "TIMESTAMPTZ" => {
-            row.try_get::<chrono::DateTime<chrono::Utc>, _>(idx).map(|v| v.to_string())
-                .or_else(|_| row.try_get::<chrono::NaiveDateTime, _>(idx).map(|v| v.to_string()))
-                .unwrap_or_else(|_| "ERR".to_string())
-        }
-        "BYTEA" => {
-            row.try_get::<Vec<u8>, _>(idx)
-                .map(|v| format!("\\x{}", v.iter().map(|b| format!("{:02x}", b)).collect::<String>()))
-                .unwrap_or_else(|_| "ERR".to_string())
-        }
-        _ => {
-            row.try_get::<String, _>(idx)
-                .or_else(|_| row.try_get::<rust_decimal::Decimal, _>(idx).map(|v| v.to_string()))
-                .or_else(|_| row.try_get::<i64, _>(idx).map(|v| v.to_string()))
-                .unwrap_or_else(|_| format!("<{}>", type_name))
-        }
+        "BOOL" | "BOOLEAN" => row
+            .try_get::<bool, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "INT2" | "SMALLINT" => row
+            .try_get::<i16, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "INT4" | "INT" | "INTEGER" => row
+            .try_get::<i32, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "INT8" | "BIGINT" => row
+            .try_get::<i64, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "OID" => row
+            .try_get::<sqlx::postgres::types::Oid, _>(idx)
+            .map(|v| v.0.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "FLOAT4" | "REAL" => row
+            .try_get::<f32, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "FLOAT8" | "DOUBLE PRECISION" => row
+            .try_get::<f64, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "NUMERIC" | "DECIMAL" => row
+            .try_get::<rust_decimal::Decimal, _>(idx)
+            .map(|v| v.to_string())
+            .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "TEXT" | "VARCHAR" | "CHAR" | "BPCHAR" | "NAME" | "CITEXT" => row
+            .try_get::<String, _>(idx)
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "JSON" | "JSONB" => row
+            .try_get::<serde_json::Value, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "UUID" => row
+            .try_get::<uuid::Uuid, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "DATE" => row
+            .try_get::<chrono::NaiveDate, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "TIME" => row
+            .try_get::<chrono::NaiveTime, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "TIMESTAMP" => row
+            .try_get::<chrono::NaiveDateTime, _>(idx)
+            .map(|v| v.to_string())
+            .or_else(|_| {
+                row.try_get::<chrono::DateTime<chrono::Utc>, _>(idx)
+                    .map(|v| v.to_string())
+            })
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "TIMESTAMPTZ" => row
+            .try_get::<chrono::DateTime<chrono::Utc>, _>(idx)
+            .map(|v| v.to_string())
+            .or_else(|_| {
+                row.try_get::<chrono::NaiveDateTime, _>(idx)
+                    .map(|v| v.to_string())
+            })
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "BYTEA" => row
+            .try_get::<Vec<u8>, _>(idx)
+            .map(|v| {
+                format!(
+                    "\\x{}",
+                    v.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+                )
+            })
+            .unwrap_or_else(|_| "ERR".to_string()),
+        _ => row
+            .try_get::<String, _>(idx)
+            .or_else(|_| {
+                row.try_get::<rust_decimal::Decimal, _>(idx)
+                    .map(|v| v.to_string())
+            })
+            .or_else(|_| row.try_get::<i64, _>(idx).map(|v| v.to_string()))
+            .unwrap_or_else(|_| format!("<{}>", type_name)),
     }
 }
 
@@ -606,42 +682,70 @@ fn format_mysql_value(row: &MySqlRow, idx: usize) -> String {
 
     let type_name = row.column(idx).type_info().name();
     match type_name {
-        "BOOLEAN" | "TINYINT(1)" => row.try_get::<bool, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "TINYINT" => row.try_get::<i8, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "SMALLINT" => row.try_get::<i16, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "INT" | "INTEGER" | "MEDIUMINT" => row.try_get::<i32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "BIGINT" => row.try_get::<i64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "FLOAT" => row.try_get::<f32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "DOUBLE" => row.try_get::<f64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "DECIMAL" | "NEWDECIMAL" | "NUMERIC" => {
-            row.try_get::<rust_decimal::Decimal, _>(idx)
-                .map(|v| v.to_string())
-                .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
-                .unwrap_or_else(|_| "ERR".to_string())
-        }
-        "VARCHAR" | "CHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" => {
-            row.try_get::<String, _>(idx).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "JSON" => {
-            row.try_get::<serde_json::Value, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "DATE" => {
-            row.try_get::<chrono::NaiveDate, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "TIME" => {
-            row.try_get::<chrono::NaiveTime, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string())
-        }
-        "DATETIME" | "TIMESTAMP" => {
-            row.try_get::<chrono::NaiveDateTime, _>(idx).map(|v| v.to_string())
-                .or_else(|_| row.try_get::<chrono::DateTime<chrono::Utc>, _>(idx).map(|v| v.to_string()))
-                .unwrap_or_else(|_| "ERR".to_string())
-        }
-        _ => {
-            row.try_get::<String, _>(idx)
-                .or_else(|_| row.try_get::<rust_decimal::Decimal, _>(idx).map(|v| v.to_string()))
-                .or_else(|_| row.try_get::<i64, _>(idx).map(|v| v.to_string()))
-                .unwrap_or_else(|_| format!("<{}>", type_name))
-        }
+        "BOOLEAN" | "TINYINT(1)" => row
+            .try_get::<bool, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "TINYINT" => row
+            .try_get::<i8, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "SMALLINT" => row
+            .try_get::<i16, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "INT" | "INTEGER" | "MEDIUMINT" => row
+            .try_get::<i32, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "BIGINT" => row
+            .try_get::<i64, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "FLOAT" => row
+            .try_get::<f32, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "DOUBLE" => row
+            .try_get::<f64, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "DECIMAL" | "NEWDECIMAL" | "NUMERIC" => row
+            .try_get::<rust_decimal::Decimal, _>(idx)
+            .map(|v| v.to_string())
+            .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "VARCHAR" | "CHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" => row
+            .try_get::<String, _>(idx)
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "JSON" => row
+            .try_get::<serde_json::Value, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "DATE" => row
+            .try_get::<chrono::NaiveDate, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "TIME" => row
+            .try_get::<chrono::NaiveTime, _>(idx)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| "ERR".to_string()),
+        "DATETIME" | "TIMESTAMP" => row
+            .try_get::<chrono::NaiveDateTime, _>(idx)
+            .map(|v| v.to_string())
+            .or_else(|_| {
+                row.try_get::<chrono::DateTime<chrono::Utc>, _>(idx)
+                    .map(|v| v.to_string())
+            })
+            .unwrap_or_else(|_| "ERR".to_string()),
+        _ => row
+            .try_get::<String, _>(idx)
+            .or_else(|_| {
+                row.try_get::<rust_decimal::Decimal, _>(idx)
+                    .map(|v| v.to_string())
+            })
+            .or_else(|_| row.try_get::<i64, _>(idx).map(|v| v.to_string()))
+            .unwrap_or_else(|_| format!("<{}>", type_name)),
     }
 }
 

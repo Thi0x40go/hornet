@@ -15,7 +15,7 @@ impl Default for VimMode {
 #[derive(Debug, Clone, Default)]
 pub struct VimState {
     pub mode: VimMode,
-    pub pending_op: Option<char>, // 'd', 'c', 'y', 'g'
+    pub pending_op: Option<char>,              // 'd', 'c', 'y', 'g'
     pub visual_anchor: Option<(usize, usize)>, // (row, col)
     pub register: String,
     pub is_line_register: bool,
@@ -69,7 +69,11 @@ impl VimState {
     }
 
     pub fn enter_visual(&mut self, row: usize, col: usize, line_mode: bool) {
-        self.mode = if line_mode { VimMode::VisualLine } else { VimMode::Visual };
+        self.mode = if line_mode {
+            VimMode::VisualLine
+        } else {
+            VimMode::Visual
+        };
         self.visual_anchor = Some((row, col));
         self.pending_op = None;
     }

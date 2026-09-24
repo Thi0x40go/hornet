@@ -120,6 +120,7 @@ Hornet is built as a single, high-performance, **100% pure Rust** standalone bin
 | <kbd>Enter</kbd> | Expand node / switch database / preview table query |
 | <kbd>Space</kbd> / <kbd>o</kbd> / <kbd>l</kbd> | Toggle node expand / collapse |
 | <kbd>a</kbd> / <kbd>N</kbd> | Open New Connection modal |
+| <kbd>d</kbd> / <kbd>x</kbd> / <kbd>Delete</kbd> | Delete selected connection |
 | <kbd>r</kbd> | Refresh connections and saved notes |
 
 ### Results Grid
@@ -148,7 +149,7 @@ Hornet is built as a single, high-performance, **100% pure Rust** standalone bin
 Clone the repository and compile with Cargo:
 
 ```bash
-git clone https://github.com/thiagopinheiro/hornet.git
+git clone https://github.com/Thi0x40go/hornet.git
 cd hornet
 
 # Build release binary
@@ -184,10 +185,9 @@ Hornet stores its configuration in standard XDG directories:
 - **Connections**: `~/.config/hornet/connections.json`
 - **Saved SQL Notes**: `~/.local/state/hornet/notes/global/`
 
-### Backwards Compatibility
+### Automatic Connection Import
 
 Hornet automatically detects and imports connections from:
-- `~/.local/state/nvim/dbee/persistence.json` (nvim-dbee)
 - `~/.config/sqls/config.yml` (sqls)
 
 ---

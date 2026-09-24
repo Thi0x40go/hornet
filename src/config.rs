@@ -134,7 +134,11 @@ pub fn load_all_connections() -> Vec<ConnectionParams> {
 
                 let conn_url = match driver_type {
                     "postgres" => {
-                        let host = if conn.host.is_empty() { "localhost" } else { &conn.host };
+                        let host = if conn.host.is_empty() {
+                            "localhost"
+                        } else {
+                            &conn.host
+                        };
                         let port = conn.port.unwrap_or(5432);
                         let auth = match &conn.passwd {
                             Some(p) if !p.is_empty() => format!("{}:{}@", conn.user, p),
@@ -144,7 +148,11 @@ pub fn load_all_connections() -> Vec<ConnectionParams> {
                         format!("postgres://{}{}:{}/{}", auth, host, port, conn.db_name)
                     }
                     "mysql" => {
-                        let host = if conn.host.is_empty() { "localhost" } else { &conn.host };
+                        let host = if conn.host.is_empty() {
+                            "localhost"
+                        } else {
+                            &conn.host
+                        };
                         let port = conn.port.unwrap_or(3306);
                         let auth = match &conn.passwd {
                             Some(p) if !p.is_empty() => format!("{}:{}", conn.user, p),

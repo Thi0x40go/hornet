@@ -10,8 +10,8 @@ use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{
-        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row,
-        Table, TableState,
+        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+        TableState,
     },
     Frame,
 };
@@ -19,13 +19,33 @@ use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 pub const DRIVER_TYPES: &[(&str, &str, &str)] = &[
-    ("postgres", "PostgreSQL", "postgresql://user:password@localhost:5432/dbname?sslmode=disable"),
-    ("mysql", "MySQL / MariaDB", "mysql://user:password@localhost:3306/dbname"),
+    (
+        "postgres",
+        "PostgreSQL",
+        "postgresql://user:password@localhost:5432/dbname?sslmode=disable",
+    ),
+    (
+        "mysql",
+        "MySQL / MariaDB",
+        "mysql://user:password@localhost:3306/dbname",
+    ),
     ("sqlite", "SQLite", "/path/to/database.db"),
-    ("sqlserver", "SQL Server (MSSQL)", "sqlserver://user:password@localhost:1433?database=master"),
-    ("clickhouse", "ClickHouse", "clickhouse://user:password@localhost:9000/default"),
+    (
+        "sqlserver",
+        "SQL Server (MSSQL)",
+        "sqlserver://user:password@localhost:1433?database=master",
+    ),
+    (
+        "clickhouse",
+        "ClickHouse",
+        "clickhouse://user:password@localhost:9000/default",
+    ),
     ("duckdb", "DuckDB", "/path/to/duck.db"),
-    ("oracle", "Oracle", "oracle://user:password@localhost:1521/xe"),
+    (
+        "oracle",
+        "Oracle",
+        "oracle://user:password@localhost:1521/xe",
+    ),
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,13 +62,32 @@ pub enum NodeType {
     SectionHistory,
     ConnectionNew,
     Connection(String),
-    Database { conn_id: String, name: String, is_active: bool },
-    Schema { conn_id: String, name: String },
-    Table { conn_id: String, schema: String, name: String },
-    Column { name: String, r#type: String },
+    Database {
+        conn_id: String,
+        name: String,
+        is_active: bool,
+    },
+    Schema {
+        conn_id: String,
+        name: String,
+    },
+    Table {
+        conn_id: String,
+        schema: String,
+        name: String,
+    },
+    Column {
+        name: String,
+        r#type: String,
+    },
     NoteNew,
-    Note { name: String, path: String },
-    History { query: String },
+    Note {
+        name: String,
+        path: String,
+    },
+    History {
+        query: String,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -241,7 +280,11 @@ impl App {
         let conn_name = self.new_conn_name.trim().to_string();
         self.status_msg = format!("Testing and adding connection '{}'...", conn_name);
 
-        match self.db.add_connection(&conn_name, driver_type, self.new_conn_url.trim()).await {
+        match self
+            .db
+            .add_connection(&conn_name, driver_type, self.new_conn_url.trim())
+            .await
+        {
             Ok(conns) => {
                 self.is_testing_conn = false;
                 self.show_new_conn_modal = false;
@@ -317,7 +360,11 @@ impl App {
     }
 
     pub fn apply_structure_response(&mut self, conn_id: &str, resp: StructureResponse) {
-        self.status_msg = format!("Connected: database '{}' ({} schemas)", resp.current_db, resp.structures.len());
+        self.status_msg = format!(
+            "Connected: database '{}' ({} schemas)",
+            resp.current_db,
+            resp.structures.len()
+        );
         self.local_tables.clear();
         self.local_columns.clear();
 
@@ -332,13 +379,18 @@ impl App {
 
                 let mut schema_children = Vec::new();
                 for s in resp.structures {
-                    let schema_name = if s.name.is_empty() { "public".to_string() } else { s.name.clone() };
+                    let schema_name = if s.name.is_empty() {
+                        "public".to_string()
+                    } else {
+                        s.name.clone()
+                    };
                     let mut table_nodes = Vec::new();
                     if let Some(children) = s.children {
                         for t in children {
                             self.local_tables.insert(t.name.clone());
                             if schema_name != "public" && !schema_name.is_empty() {
-                                self.local_tables.insert(format!("{}.{}", schema_name, t.name));
+                                self.local_tables
+                                    .insert(format!("{}.{}", schema_name, t.name));
                             }
                             table_nodes.push(TreeNode {
                                 label: t.name.clone(),
@@ -390,7 +442,11 @@ impl App {
                         },
                         level: 2,
                         expanded: is_active,
-                        children: if is_active { schema_children.clone() } else { Vec::new() },
+                        children: if is_active {
+                            schema_children.clone()
+                        } else {
+                            Vec::new()
+                        },
                         loaded: is_active,
                     });
                 }
@@ -440,7 +496,11 @@ impl App {
         }
     }
 
-    fn attach_columns_recursive(nodes: &mut [TreeNode], target: &NodeType, cols: Vec<TreeNode>) -> bool {
+    fn attach_columns_recursive(
+        nodes: &mut [TreeNode],
+        target: &NodeType,
+        cols: Vec<TreeNode>,
+    ) -> bool {
         for n in nodes.iter_mut() {
             if &n.node_type == target {
                 n.children = cols;
@@ -514,7 +574,11 @@ impl App {
                             return;
                         }
                     }
-                    NodeType::Table { conn_id, schema, name } => {
+                    NodeType::Table {
+                        conn_id,
+                        schema,
+                        name,
+                    } => {
                         if !node.loaded {
                             let cid = conn_id.clone();
                             let s = schema.clone();
@@ -550,7 +614,10 @@ impl App {
             if idx < self.flat_nodes.len() {
                 let node = self.flat_nodes[idx].clone();
                 match node.node_type {
-                    NodeType::SectionConnections | NodeType::SectionNotes | NodeType::SectionHistory | NodeType::Schema { .. } => {
+                    NodeType::SectionConnections
+                    | NodeType::SectionNotes
+                    | NodeType::SectionHistory
+                    | NodeType::Schema { .. } => {
                         self.toggle_selected_node().await;
                     }
                     NodeType::ConnectionNew => {
@@ -560,7 +627,11 @@ impl App {
                         self.active_conn_id = id;
                         self.load_structure_for_active().await;
                     }
-                    NodeType::Database { conn_id, name, is_active } => {
+                    NodeType::Database {
+                        conn_id,
+                        name,
+                        is_active,
+                    } => {
                         if is_active {
                             self.toggle_selected_node().await;
                         } else {
@@ -590,7 +661,11 @@ impl App {
                         self.execute_query_scope(ExecScope::All).await;
                     }
                     NodeType::Column { name, .. } => {
-                        let mut line = self.editor_lines.get(self.cursor_row).cloned().unwrap_or_default();
+                        let mut line = self
+                            .editor_lines
+                            .get(self.cursor_row)
+                            .cloned()
+                            .unwrap_or_default();
                         line.push_str(&format!(" {}", name));
                         self.editor_lines[self.cursor_row] = line;
                     }
@@ -626,7 +701,11 @@ impl App {
     }
 
     pub async fn trigger_completions(&mut self, query_lsp: bool) {
-        let cur_line = self.editor_lines.get(self.cursor_row).cloned().unwrap_or_default();
+        let cur_line = self
+            .editor_lines
+            .get(self.cursor_row)
+            .cloned()
+            .unwrap_or_default();
         let col = self.cursor_col.min(cur_line.len());
         let before_cursor = &cur_line[..col];
 
@@ -668,7 +747,9 @@ impl App {
 
         // 2. Local Database Tables & Columns
         for tbl in &self.local_tables {
-            if (prefix.is_empty() || tbl.to_lowercase().starts_with(&lower_prefix)) && !seen.contains(tbl) {
+            if (prefix.is_empty() || tbl.to_lowercase().starts_with(&lower_prefix))
+                && !seen.contains(tbl)
+            {
                 seen.insert(tbl.clone());
                 items.push(CompletionItem {
                     label: tbl.clone(),
@@ -679,7 +760,9 @@ impl App {
         }
 
         for col in &self.local_columns {
-            if (prefix.is_empty() || col.to_lowercase().starts_with(&lower_prefix)) && !seen.contains(col) {
+            if (prefix.is_empty() || col.to_lowercase().starts_with(&lower_prefix))
+                && !seen.contains(col)
+            {
                 seen.insert(col.clone());
                 items.push(CompletionItem {
                     label: col.clone(),
@@ -691,14 +774,44 @@ impl App {
 
         // 3. Common SQL Keywords
         let keywords = [
-            "SELECT", "FROM", "WHERE", "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN",
-            "GROUP BY", "ORDER BY", "HAVING", "LIMIT", "INSERT INTO", "UPDATE", "DELETE",
-            "CREATE TABLE", "DROP TABLE", "ALTER TABLE", "AS", "DISTINCT", "AND", "OR", "NOT",
-            "IN", "BETWEEN", "LIKE", "IS NULL", "IS NOT NULL", "COUNT(*)", "SUM", "AVG", "MIN", "MAX",
+            "SELECT",
+            "FROM",
+            "WHERE",
+            "JOIN",
+            "INNER JOIN",
+            "LEFT JOIN",
+            "RIGHT JOIN",
+            "GROUP BY",
+            "ORDER BY",
+            "HAVING",
+            "LIMIT",
+            "INSERT INTO",
+            "UPDATE",
+            "DELETE",
+            "CREATE TABLE",
+            "DROP TABLE",
+            "ALTER TABLE",
+            "AS",
+            "DISTINCT",
+            "AND",
+            "OR",
+            "NOT",
+            "IN",
+            "BETWEEN",
+            "LIKE",
+            "IS NULL",
+            "IS NOT NULL",
+            "COUNT(*)",
+            "SUM",
+            "AVG",
+            "MIN",
+            "MAX",
         ];
 
         for kw in keywords {
-            if (prefix.is_empty() || kw.to_lowercase().starts_with(&lower_prefix)) && !seen.contains(kw) {
+            if (prefix.is_empty() || kw.to_lowercase().starts_with(&lower_prefix))
+                && !seen.contains(kw)
+            {
                 seen.insert(kw.to_string());
                 items.push(CompletionItem {
                     label: kw.to_string(),
@@ -720,7 +833,11 @@ impl App {
     pub fn insert_completion(&mut self) {
         if let Some(item) = self.completions.get(self.selected_completion) {
             let text_to_insert = item.insert_text.as_ref().unwrap_or(&item.label);
-            let cur_line = self.editor_lines.get(self.cursor_row).cloned().unwrap_or_default();
+            let cur_line = self
+                .editor_lines
+                .get(self.cursor_row)
+                .cloned()
+                .unwrap_or_default();
             let col = self.cursor_col.min(cur_line.len());
 
             let prefix_len = self.completion_prefix.len();
@@ -744,17 +861,29 @@ impl App {
 
         let (query, desc) = match scope {
             ExecScope::Line => {
-                let line = self.editor_lines.get(self.cursor_row).cloned().unwrap_or_default();
-                (line.trim().to_string(), format!("line {}", self.cursor_row + 1))
+                let line = self
+                    .editor_lines
+                    .get(self.cursor_row)
+                    .cloned()
+                    .unwrap_or_default();
+                (
+                    line.trim().to_string(),
+                    format!("line {}", self.cursor_row + 1),
+                )
             }
             ExecScope::Statement => {
                 let (stmt, s, e) = self.current_statement();
-                let desc = if s == e { format!("line {}", s + 1) } else { format!("lines {}-{}", s + 1, e + 1) };
+                let desc = if s == e {
+                    format!("line {}", s + 1)
+                } else {
+                    format!("lines {}-{}", s + 1, e + 1)
+                };
                 (stmt, desc)
             }
-            ExecScope::All => {
-                (self.editor_lines.join("\n").trim().to_string(), format!("all {} lines", self.editor_lines.len()))
-            }
+            ExecScope::All => (
+                self.editor_lines.join("\n").trim().to_string(),
+                format!("all {} lines", self.editor_lines.len()),
+            ),
         };
 
         if query.is_empty() {
@@ -786,27 +915,42 @@ impl App {
                 }
 
                 self.col_widths = widths;
-                self.status_msg = format!("Executed in {}ms ({} rows)", res.duration_ms, res.total_rows);
+                self.status_msg = format!(
+                    "Executed in {}ms ({} rows)",
+                    res.duration_ms, res.total_rows
+                );
 
-                self.history.insert(0, HistoryEntry {
-                    conn_id: self.active_conn_id.clone(),
-                    query: query.clone(),
-                    duration_ms: res.duration_ms,
-                    row_count: res.total_rows,
-                    timestamp: chrono::Local::now(),
-                    error: None,
-                });
+                self.history.insert(
+                    0,
+                    HistoryEntry {
+                        conn_id: self.active_conn_id.clone(),
+                        query: query.clone(),
+                        duration_ms: res.duration_ms,
+                        row_count: res.total_rows,
+                        timestamp: chrono::Local::now(),
+                        error: None,
+                    },
+                );
 
                 // Update history tree node
                 if let Some(hist_sec) = self.tree.get_mut(2) {
-                    hist_sec.children.insert(0, TreeNode {
-                        label: format!("{} ({}ms)", truncate_str(&query.replace('\n', " "), 25), res.duration_ms),
-                        node_type: NodeType::History { query: query.clone() },
-                        level: 1,
-                        expanded: false,
-                        children: Vec::new(),
-                        loaded: true,
-                    });
+                    hist_sec.children.insert(
+                        0,
+                        TreeNode {
+                            label: format!(
+                                "{} ({}ms)",
+                                truncate_str(&query.replace('\n', " "), 25),
+                                res.duration_ms
+                            ),
+                            node_type: NodeType::History {
+                                query: query.clone(),
+                            },
+                            level: 1,
+                            expanded: false,
+                            children: Vec::new(),
+                            loaded: true,
+                        },
+                    );
                 }
                 self.rebuild_flat_tree();
 
@@ -820,14 +964,17 @@ impl App {
                 self.is_executing = false;
                 self.status_msg = format!("Error: {}", e);
                 self.results_error = Some(e.clone());
-                self.history.insert(0, HistoryEntry {
-                    conn_id: self.active_conn_id.clone(),
-                    query,
-                    duration_ms: start.elapsed().as_millis() as i64,
-                    row_count: 0,
-                    timestamp: chrono::Local::now(),
-                    error: Some(e),
-                });
+                self.history.insert(
+                    0,
+                    HistoryEntry {
+                        conn_id: self.active_conn_id.clone(),
+                        query,
+                        duration_ms: start.elapsed().as_millis() as i64,
+                        row_count: 0,
+                        timestamp: chrono::Local::now(),
+                        error: Some(e),
+                    },
+                );
             }
         }
     }
@@ -885,7 +1032,11 @@ impl App {
         let val = self.current_cell_value();
         copy_text(&val);
         let col = self.current_col_name();
-        self.set_toast(format!("Copied cell [{}] = \"{}\"", col, truncate_str(&val, 25)));
+        self.set_toast(format!(
+            "Copied cell [{}] = \"{}\"",
+            col,
+            truncate_str(&val, 25)
+        ));
     }
 
     pub fn copy_current_row_json(&mut self) {
@@ -898,7 +1049,8 @@ impl App {
                             map.insert(h.clone(), serde_json::Value::String(val.clone()));
                         }
                     }
-                    let json = serde_json::to_string_pretty(&serde_json::Value::Object(map)).unwrap_or_default();
+                    let json = serde_json::to_string_pretty(&serde_json::Value::Object(map))
+                        .unwrap_or_default();
                     copy_text(&json);
                     self.set_toast(format!("Copied row #{} as JSON", row_idx + 1));
                 }
@@ -923,8 +1075,21 @@ impl App {
             if let Some(row_idx) = self.table_state.selected() {
                 if let Some(row) = res.rows.get(row_idx) {
                     let cols = res.headers.join(", ");
-                    let vals: Vec<String> = row.iter().map(|v| if v == "NULL" { "NULL".to_string() } else { format!("'{}'", v.replace('\'', "''")) }).collect();
-                    let sql = format!("INSERT INTO table_name ({}) VALUES ({});", cols, vals.join(", "));
+                    let vals: Vec<String> = row
+                        .iter()
+                        .map(|v| {
+                            if v == "NULL" {
+                                "NULL".to_string()
+                            } else {
+                                format!("'{}'", v.replace('\'', "''"))
+                            }
+                        })
+                        .collect();
+                    let sql = format!(
+                        "INSERT INTO table_name ({}) VALUES ({});",
+                        cols,
+                        vals.join(", ")
+                    );
                     copy_text(&sql);
                     self.set_toast(format!("Copied row #{} as SQL INSERT", row_idx + 1));
                 }
@@ -956,7 +1121,8 @@ impl App {
                 }
                 list.push(serde_json::Value::Object(map));
             }
-            let json = serde_json::to_string_pretty(&serde_json::Value::Array(list)).unwrap_or_default();
+            let json =
+                serde_json::to_string_pretty(&serde_json::Value::Array(list)).unwrap_or_default();
             copy_text(&json);
             self.set_toast(format!("Copied all {} rows as JSON", res.rows.len()));
         }
@@ -964,12 +1130,19 @@ impl App {
 
     pub fn copy_all_markdown(&mut self) {
         if let Some(res) = &self.query_result {
-            let mut md = format!("| {} |\n| {} |\n", res.headers.join(" | "), vec!["---"; res.headers.len()].join(" | "));
+            let mut md = format!(
+                "| {} |\n| {} |\n",
+                res.headers.join(" | "),
+                vec!["---"; res.headers.len()].join(" | ")
+            );
             for r in &res.rows {
                 md.push_str(&format!("| {} |\n", r.join(" | ")));
             }
             copy_text(&md);
-            self.set_toast(format!("Copied all {} rows as Markdown Table", res.rows.len()));
+            self.set_toast(format!(
+                "Copied all {} rows as Markdown Table",
+                res.rows.len()
+            ));
         }
     }
 
@@ -1020,16 +1193,31 @@ impl App {
     }
 
     fn render_drawer(&mut self, frame: &mut Frame, area: Rect) {
-        let border_color = if self.focus == FocusArea::Drawer { self.theme.border_active } else { self.theme.border_inactive };
+        let border_color = if self.focus == FocusArea::Drawer {
+            self.theme.border_active
+        } else {
+            self.theme.border_inactive
+        };
         let title_spans = if self.focus == FocusArea::Drawer {
             vec![
-                Span::styled(" 󱃖 Explorer (1) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)),
-                Span::styled("[a: Add │ d: Del │ Enter: Open] ", Style::default().fg(self.theme.border_active)),
+                Span::styled(
+                    " 󱃖 Explorer (1) ",
+                    Style::default()
+                        .fg(self.theme.title)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    "[a: Add │ d: Del │ Enter: Open] ",
+                    Style::default().fg(self.theme.border_active),
+                ),
             ]
         } else {
-            vec![
-                Span::styled(" 󱃖 Explorer (1) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)),
-            ]
+            vec![Span::styled(
+                " 󱃖 Explorer (1) ",
+                Style::default()
+                    .fg(self.theme.title)
+                    .add_modifier(Modifier::BOLD),
+            )]
         };
 
         let block = Block::default()
@@ -1038,82 +1226,172 @@ impl App {
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(border_color));
 
-        let items: Vec<ListItem> = self.flat_nodes.iter().map(|n| {
-            let indent = "  ".repeat(n.level);
-            let icon = match &n.node_type {
-                NodeType::SectionConnections | NodeType::SectionNotes | NodeType::SectionHistory => {
-                    if n.expanded { "󰅂 " } else { "󰅃 " }
-                }
-                NodeType::ConnectionNew => "󰐕 ",
-                NodeType::Connection(id) => {
-                    if let Some((online, _)) = self.conn_health.get(id) {
-                        if *online { "🟢 " } else { "🔴 " }
-                    } else {
-                        "🟡 "
+        let items: Vec<ListItem> = self
+            .flat_nodes
+            .iter()
+            .map(|n| {
+                let indent = "  ".repeat(n.level);
+                let icon = match &n.node_type {
+                    NodeType::SectionConnections
+                    | NodeType::SectionNotes
+                    | NodeType::SectionHistory => {
+                        if n.expanded {
+                            "󰅂 "
+                        } else {
+                            "󰅃 "
+                        }
                     }
-                }
-                NodeType::Database { is_active, .. } => if *is_active { "󱤝 " } else { "󱤞 " },
-                NodeType::Schema { .. } => if n.expanded { "󰉓 " } else { "󰉖 " },
-                NodeType::Table { .. } => if n.expanded { "󰓫  " } else { "󰓫 " },
-                NodeType::Column { .. } => " ",
-                NodeType::NoteNew => "󰎔 ",
-                NodeType::Note { .. } => "󰈙 ",
-                NodeType::History { .. } => "󰋚 ",
-            };
+                    NodeType::ConnectionNew => "󰐕 ",
+                    NodeType::Connection(id) => {
+                        if let Some((online, _)) = self.conn_health.get(id) {
+                            if *online {
+                                "🟢 "
+                            } else {
+                                "🔴 "
+                            }
+                        } else {
+                            "🟡 "
+                        }
+                    }
+                    NodeType::Database { is_active, .. } => {
+                        if *is_active {
+                            "󱤝 "
+                        } else {
+                            "󱤞 "
+                        }
+                    }
+                    NodeType::Schema { .. } => {
+                        if n.expanded {
+                            "󰉓 "
+                        } else {
+                            "󰉖 "
+                        }
+                    }
+                    NodeType::Table { .. } => {
+                        if n.expanded {
+                            "󰓫  "
+                        } else {
+                            "󰓫 "
+                        }
+                    }
+                    NodeType::Column { .. } => " ",
+                    NodeType::NoteNew => "󰎔 ",
+                    NodeType::Note { .. } => "󰈙 ",
+                    NodeType::History { .. } => "󰋚 ",
+                };
 
-            let style = match &n.node_type {
-                NodeType::SectionConnections | NodeType::SectionNotes | NodeType::SectionHistory => {
-                    Style::default().fg(self.theme.accent).add_modifier(Modifier::BOLD)
-                }
-                NodeType::ConnectionNew => Style::default().fg(self.theme.success).add_modifier(Modifier::BOLD),
-                NodeType::Connection(id) => if id == &self.active_conn_id {
-                    Style::default().fg(self.theme.success).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(self.theme.fg)
-                },
-                NodeType::Database { is_active, .. } => if *is_active {
-                    Style::default().fg(self.theme.warning).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(self.theme.muted)
-                },
-                NodeType::Schema { .. } => Style::default().fg(self.theme.title),
-                NodeType::Table { .. } => Style::default().fg(self.theme.fg),
-                NodeType::Column { .. } => Style::default().fg(self.theme.muted),
-                NodeType::NoteNew => Style::default().fg(self.theme.success),
-                NodeType::Note { .. } => Style::default().fg(self.theme.fg),
-                NodeType::History { .. } => Style::default().fg(self.theme.muted),
-            };
+                let style = match &n.node_type {
+                    NodeType::SectionConnections
+                    | NodeType::SectionNotes
+                    | NodeType::SectionHistory => Style::default()
+                        .fg(self.theme.accent)
+                        .add_modifier(Modifier::BOLD),
+                    NodeType::ConnectionNew => Style::default()
+                        .fg(self.theme.success)
+                        .add_modifier(Modifier::BOLD),
+                    NodeType::Connection(id) => {
+                        if id == &self.active_conn_id {
+                            Style::default()
+                                .fg(self.theme.success)
+                                .add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().fg(self.theme.fg)
+                        }
+                    }
+                    NodeType::Database { is_active, .. } => {
+                        if *is_active {
+                            Style::default()
+                                .fg(self.theme.warning)
+                                .add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default().fg(self.theme.muted)
+                        }
+                    }
+                    NodeType::Schema { .. } => Style::default().fg(self.theme.title),
+                    NodeType::Table { .. } => Style::default().fg(self.theme.fg),
+                    NodeType::Column { .. } => Style::default().fg(self.theme.muted),
+                    NodeType::NoteNew => Style::default().fg(self.theme.success),
+                    NodeType::Note { .. } => Style::default().fg(self.theme.fg),
+                    NodeType::History { .. } => Style::default().fg(self.theme.muted),
+                };
 
-            ListItem::new(Line::from(vec![
-                Span::raw(indent),
-                Span::raw(icon),
-                Span::styled(n.label.clone(), style),
-            ]))
-        }).collect();
+                ListItem::new(Line::from(vec![
+                    Span::raw(indent),
+                    Span::raw(icon),
+                    Span::styled(n.label.clone(), style),
+                ]))
+            })
+            .collect();
 
         let list = List::new(items)
             .block(block)
-            .highlight_style(Style::default().bg(self.theme.table_selected_bg).fg(self.theme.table_selected_fg).add_modifier(Modifier::BOLD))
+            .highlight_style(
+                Style::default()
+                    .bg(self.theme.table_selected_bg)
+                    .fg(self.theme.table_selected_fg)
+                    .add_modifier(Modifier::BOLD),
+            )
             .highlight_symbol("▶ ");
 
         frame.render_stateful_widget(list, area, &mut self.drawer_state);
     }
 
     fn render_editor(&mut self, frame: &mut Frame, area: Rect) {
-        let border_color = if self.focus == FocusArea::Editor { self.theme.border_active } else { self.theme.border_inactive };
+        let border_color = if self.focus == FocusArea::Editor {
+            self.theme.border_active
+        } else {
+            self.theme.border_inactive
+        };
 
         let mode_badge = match self.vim.mode {
-            VimMode::Normal => Span::styled(" [NORMAL] ", Style::default().bg(self.theme.border_active).fg(self.theme.bg).add_modifier(Modifier::BOLD)),
-            VimMode::Insert => Span::styled(" [INSERT] ", Style::default().bg(self.theme.success).fg(self.theme.bg).add_modifier(Modifier::BOLD)),
-            VimMode::Visual => Span::styled(" [VISUAL] ", Style::default().bg(self.theme.warning).fg(self.theme.bg).add_modifier(Modifier::BOLD)),
-            VimMode::VisualLine => Span::styled(" [VISUAL LINE] ", Style::default().bg(self.theme.warning).fg(self.theme.bg).add_modifier(Modifier::BOLD)),
+            VimMode::Normal => Span::styled(
+                " [NORMAL] ",
+                Style::default()
+                    .bg(self.theme.border_active)
+                    .fg(self.theme.bg)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            VimMode::Insert => Span::styled(
+                " [INSERT] ",
+                Style::default()
+                    .bg(self.theme.success)
+                    .fg(self.theme.bg)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            VimMode::Visual => Span::styled(
+                " [VISUAL] ",
+                Style::default()
+                    .bg(self.theme.warning)
+                    .fg(self.theme.bg)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            VimMode::VisualLine => Span::styled(
+                " [VISUAL LINE] ",
+                Style::default()
+                    .bg(self.theme.warning)
+                    .fg(self.theme.bg)
+                    .add_modifier(Modifier::BOLD),
+            ),
         };
 
         let mut title_spans = vec![
-            Span::styled(" 󰅩 SQL Editor (2) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                " 󰅩 SQL Editor (2) ",
+                Style::default()
+                    .fg(self.theme.title)
+                    .add_modifier(Modifier::BOLD),
+            ),
             mode_badge,
             Span::raw(" "),
-            Span::styled(format!("[Ln {}/{}, Col {}] ", self.cursor_row + 1, self.editor_lines.len(), self.cursor_col + 1), Style::default().fg(self.theme.muted)),
+            Span::styled(
+                format!(
+                    "[Ln {}/{}, Col {}] ",
+                    self.cursor_row + 1,
+                    self.editor_lines.len(),
+                    self.cursor_col + 1
+                ),
+                Style::default().fg(self.theme.muted),
+            ),
         ];
 
         if self.focus == FocusArea::Editor {
@@ -1122,7 +1400,12 @@ impl App {
                 VimMode::Insert => "[Esc: Normal │ Ctrl+Space: Completions] ",
                 VimMode::Visual | VimMode::VisualLine => "[d: Cut │ y: Copy │ Esc: Normal] ",
             };
-            title_spans.push(Span::styled(hint, Style::default().fg(self.theme.border_active).add_modifier(Modifier::BOLD)));
+            title_spans.push(Span::styled(
+                hint,
+                Style::default()
+                    .fg(self.theme.border_active)
+                    .add_modifier(Modifier::BOLD),
+            ));
         }
 
         let block = Block::default()
@@ -1143,9 +1426,18 @@ impl App {
         }
 
         let mut lines = Vec::new();
-        for (i, l) in self.editor_lines.iter().enumerate().skip(self.scroll_row).take(visible_lines) {
+        for (i, l) in self
+            .editor_lines
+            .iter()
+            .enumerate()
+            .skip(self.scroll_row)
+            .take(visible_lines)
+        {
             let line_num = format!("{:2} │ ", i + 1);
-            let mut spans = vec![Span::styled(line_num, Style::default().fg(self.theme.muted))];
+            let mut spans = vec![Span::styled(
+                line_num,
+                Style::default().fg(self.theme.muted),
+            )];
 
             if i == self.cursor_row && self.focus == FocusArea::Editor {
                 let col = self.cursor_col.min(l.len());
@@ -1155,9 +1447,18 @@ impl App {
 
                 spans.extend(highlight_sql(before, &self.theme));
                 let cursor_style = match self.vim.mode {
-                    VimMode::Normal => Style::default().bg(self.theme.border_active).fg(self.theme.bg).add_modifier(Modifier::BOLD),
-                    VimMode::Insert => Style::default().bg(self.theme.success).fg(self.theme.bg).add_modifier(Modifier::BOLD),
-                    VimMode::Visual | VimMode::VisualLine => Style::default().bg(self.theme.warning).fg(self.theme.bg).add_modifier(Modifier::BOLD),
+                    VimMode::Normal => Style::default()
+                        .bg(self.theme.border_active)
+                        .fg(self.theme.bg)
+                        .add_modifier(Modifier::BOLD),
+                    VimMode::Insert => Style::default()
+                        .bg(self.theme.success)
+                        .fg(self.theme.bg)
+                        .add_modifier(Modifier::BOLD),
+                    VimMode::Visual | VimMode::VisualLine => Style::default()
+                        .bg(self.theme.warning)
+                        .fg(self.theme.bg)
+                        .add_modifier(Modifier::BOLD),
                 };
                 spans.push(Span::styled(cursor_char, cursor_style));
                 spans.extend(highlight_sql(after, &self.theme));
@@ -1181,32 +1482,53 @@ impl App {
                 popup_y = (inner.y + cursor_y).saturating_sub(popup_h);
             }
 
-            let popup_x = (inner.x + 5 + (self.cursor_col as u16)).min(inner.x + inner.width.saturating_sub(popup_w));
+            let popup_x = (inner.x + 5 + (self.cursor_col as u16))
+                .min(inner.x + inner.width.saturating_sub(popup_w));
             let popup_area = Rect::new(popup_x, popup_y, popup_w, popup_h);
 
             frame.render_widget(Clear, popup_area);
 
             let popup_block = Block::default()
-                .title(Span::styled(" 󰘦 Suggestions (LSP) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
+                .title(Span::styled(
+                    " 󰘦 Suggestions (LSP) ",
+                    Style::default()
+                        .fg(self.theme.title)
+                        .add_modifier(Modifier::BOLD),
+                ))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(self.theme.border_active));
 
-            let items: Vec<ListItem> = self.completions.iter().take(5).enumerate().map(|(i, it)| {
-                let is_sel = i == self.selected_completion;
-                let detail_str = it.detail.as_deref().unwrap_or("sql");
-                let line_style = if is_sel {
-                    Style::default().bg(self.theme.table_selected_bg).fg(Color::Rgb(255, 255, 255)).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(self.theme.fg)
-                };
+            let items: Vec<ListItem> = self
+                .completions
+                .iter()
+                .take(5)
+                .enumerate()
+                .map(|(i, it)| {
+                    let is_sel = i == self.selected_completion;
+                    let detail_str = it.detail.as_deref().unwrap_or("sql");
+                    let line_style = if is_sel {
+                        Style::default()
+                            .bg(self.theme.table_selected_bg)
+                            .fg(Color::Rgb(255, 255, 255))
+                            .add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(self.theme.fg)
+                    };
 
-                ListItem::new(Line::from(vec![
-                    Span::styled(if is_sel { "▶ " } else { "  " }, Style::default().fg(self.theme.border_active)),
-                    Span::styled(format!("{:<20} ", it.label), line_style),
-                    Span::styled(format!("[{}]", detail_str), Style::default().fg(self.theme.muted)),
-                ]))
-            }).collect();
+                    ListItem::new(Line::from(vec![
+                        Span::styled(
+                            if is_sel { "▶ " } else { "  " },
+                            Style::default().fg(self.theme.border_active),
+                        ),
+                        Span::styled(format!("{:<20} ", it.label), line_style),
+                        Span::styled(
+                            format!("[{}]", detail_str),
+                            Style::default().fg(self.theme.muted),
+                        ),
+                    ]))
+                })
+                .collect();
 
             let list = List::new(items).block(popup_block);
             frame.render_widget(list, popup_area);
@@ -1214,16 +1536,29 @@ impl App {
     }
 
     fn render_results(&mut self, frame: &mut Frame, area: Rect) {
-        let border_color = if self.focus == FocusArea::Results { self.theme.border_active } else { self.theme.border_inactive };
+        let border_color = if self.focus == FocusArea::Results {
+            self.theme.border_active
+        } else {
+            self.theme.border_inactive
+        };
 
         if let Some(err) = &self.results_error {
             let block = Block::default()
-                .title(Span::styled(" 󱃖 Results (3) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
+                .title(Span::styled(
+                    " 󱃖 Results (3) ",
+                    Style::default()
+                        .fg(self.theme.title)
+                        .add_modifier(Modifier::BOLD),
+                ))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(border_color));
             let p = Paragraph::new(format!(" ✖ Error: {}", err))
-                .style(Style::default().fg(self.theme.error).add_modifier(Modifier::BOLD))
+                .style(
+                    Style::default()
+                        .fg(self.theme.error)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .block(block);
             frame.render_widget(p, area);
             return;
@@ -1232,7 +1567,12 @@ impl App {
         if let Some(res) = &self.query_result {
             if res.headers.is_empty() {
                 let block = Block::default()
-                    .title(Span::styled(" 󱃖 Results (3) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
+                    .title(Span::styled(
+                        " 󱃖 Results (3) ",
+                        Style::default()
+                            .fg(self.theme.title)
+                            .add_modifier(Modifier::BOLD),
+                    ))
                     .borders(Borders::ALL)
                     .border_type(BorderType::Rounded)
                     .border_style(Style::default().fg(border_color));
@@ -1269,7 +1609,10 @@ impl App {
 
             // If selected_col is beyond end_col, advance col_offset
             if self.selected_col >= end_col {
-                self.col_offset = self.selected_col.saturating_sub(end_col.saturating_sub(self.col_offset)).saturating_add(1);
+                self.col_offset = self
+                    .selected_col
+                    .saturating_sub(end_col.saturating_sub(self.col_offset))
+                    .saturating_add(1);
                 end_col = self.col_offset;
                 current_w = 0;
                 while end_col < total_cols {
@@ -1289,20 +1632,45 @@ impl App {
             let col_name = self.current_col_name();
 
             let mut title_spans = vec![
-                Span::styled(" 󱃖 Results (3) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)),
                 Span::styled(
-                    format!("[Row {}/{} │ Cols {}-{}/{} │ {}: \"{}\" │ {}ms] ",
-                        cur_row, res.total_rows, start_col + 1, end_col, total_cols, col_name, truncate_str(&self.current_cell_value(), 18), res.duration_ms),
+                    " 󱃖 Results (3) ",
+                    Style::default()
+                        .fg(self.theme.title)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(
+                    format!(
+                        "[Row {}/{} │ Cols {}-{}/{} │ {}: \"{}\" │ {}ms] ",
+                        cur_row,
+                        res.total_rows,
+                        start_col + 1,
+                        end_col,
+                        total_cols,
+                        col_name,
+                        truncate_str(&self.current_cell_value(), 18),
+                        res.duration_ms
+                    ),
                     Style::default().fg(self.theme.muted),
                 ),
             ];
 
             if self.focus == FocusArea::Results {
-                title_spans.push(Span::styled("[c/Enter: Copy Menu │ h/l: Cols │ y: Copy Cell] ", Style::default().fg(self.theme.border_active).add_modifier(Modifier::BOLD)));
+                title_spans.push(Span::styled(
+                    "[c/Enter: Copy Menu │ h/l: Cols │ y: Copy Cell] ",
+                    Style::default()
+                        .fg(self.theme.border_active)
+                        .add_modifier(Modifier::BOLD),
+                ));
             }
 
             if let Some(toast) = &self.toast_msg {
-                title_spans.push(Span::styled(format!("✓ {} ", toast), Style::default().bg(self.theme.success).fg(self.theme.bg).add_modifier(Modifier::BOLD)));
+                title_spans.push(Span::styled(
+                    format!("✓ {} ", toast),
+                    Style::default()
+                        .bg(self.theme.success)
+                        .fg(self.theme.bg)
+                        .add_modifier(Modifier::BOLD),
+                ));
             }
 
             let block = Block::default()
@@ -1314,9 +1682,17 @@ impl App {
             let visible_headers = &res.headers[start_col..end_col];
             let header_cells = visible_headers.iter().enumerate().map(|(idx, h)| {
                 let orig_col = start_col + idx;
-                let prefix = if orig_col == self.selected_col && self.focus == FocusArea::Results { "● " } else { "" };
-                Cell::from(format!("{}{}", prefix, h))
-                    .style(Style::default().fg(self.theme.table_header_fg).bg(self.theme.table_header_bg).add_modifier(Modifier::BOLD))
+                let prefix = if orig_col == self.selected_col && self.focus == FocusArea::Results {
+                    "● "
+                } else {
+                    ""
+                };
+                Cell::from(format!("{}{}", prefix, h)).style(
+                    Style::default()
+                        .fg(self.theme.table_header_fg)
+                        .bg(self.theme.table_header_bg)
+                        .add_modifier(Modifier::BOLD),
+                )
             });
             let header = Row::new(header_cells).height(1);
 
@@ -1334,17 +1710,26 @@ impl App {
             let end_row = (start_row + visible_rows).min(res.rows.len());
 
             let visible_data = &res.rows[start_row..end_row];
-            let rows: Vec<Row> = visible_data.iter().map(|r| {
-                let cells: Vec<Cell> = (start_col..end_col).map(|orig_col| {
-                    let val = r.get(orig_col).map(|s| s.as_str()).unwrap_or("");
-                    if val == "NULL" {
-                        Cell::from("NULL").style(Style::default().fg(self.theme.muted).add_modifier(Modifier::ITALIC))
-                    } else {
-                        Cell::from(val).style(Style::default().fg(self.theme.fg))
-                    }
-                }).collect();
-                Row::new(cells)
-            }).collect();
+            let rows: Vec<Row> = visible_data
+                .iter()
+                .map(|r| {
+                    let cells: Vec<Cell> = (start_col..end_col)
+                        .map(|orig_col| {
+                            let val = r.get(orig_col).map(|s| s.as_str()).unwrap_or("");
+                            if val == "NULL" {
+                                Cell::from("NULL").style(
+                                    Style::default()
+                                        .fg(self.theme.muted)
+                                        .add_modifier(Modifier::ITALIC),
+                                )
+                            } else {
+                                Cell::from(val).style(Style::default().fg(self.theme.fg))
+                            }
+                        })
+                        .collect();
+                    Row::new(cells)
+                })
+                .collect();
 
             let constraints: Vec<Constraint> = (start_col..end_col)
                 .map(|i| Constraint::Length(self.col_widths.get(i).copied().unwrap_or(15)))
@@ -1353,7 +1738,12 @@ impl App {
             let table = Table::new(rows, constraints)
                 .header(header)
                 .block(block)
-                .row_highlight_style(Style::default().bg(self.theme.table_selected_bg).fg(self.theme.table_selected_fg).add_modifier(Modifier::BOLD))
+                .row_highlight_style(
+                    Style::default()
+                        .bg(self.theme.table_selected_bg)
+                        .fg(self.theme.table_selected_fg)
+                        .add_modifier(Modifier::BOLD),
+                )
                 .highlight_symbol("▶ ");
 
             let mut local_state = TableState::default();
@@ -1363,20 +1753,31 @@ impl App {
             frame.render_stateful_widget(table, area, &mut local_state);
         } else {
             let block = Block::default()
-                .title(Span::styled(" 󱃖 Results (3) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
+                .title(Span::styled(
+                    " 󱃖 Results (3) ",
+                    Style::default()
+                        .fg(self.theme.title)
+                        .add_modifier(Modifier::BOLD),
+                ))
                 .borders(Borders::ALL)
                 .border_type(BorderType::Rounded)
                 .border_style(Style::default().fg(border_color));
-            let p = Paragraph::new(" No query executed yet. Press F5, Ctrl+Enter or select a table in Explorer.")
-                .style(Style::default().fg(self.theme.muted))
-                .block(block);
+            let p = Paragraph::new(
+                " No query executed yet. Press F5, Ctrl+Enter or select a table in Explorer.",
+            )
+            .style(Style::default().fg(self.theme.muted))
+            .block(block);
             frame.render_widget(p, area);
         }
     }
 
     fn render_status_bar(&self, frame: &mut Frame, area: Rect) {
         let conn_status = if let Some((online, lat)) = self.conn_health.get(&self.active_conn_id) {
-            if *online { format!("🟢 Online ({}ms)", lat) } else { "🔴 Offline".to_string() }
+            if *online {
+                format!("🟢 Online ({}ms)", lat)
+            } else {
+                "🔴 Offline".to_string()
+            }
         } else {
             "🔴 Offline".to_string()
         };
@@ -1388,26 +1789,46 @@ impl App {
         };
 
         let left_spans = vec![
-            Span::styled(" DB: ", Style::default().fg(self.theme.warning).add_modifier(Modifier::BOLD)),
-            Span::styled(if self.active_conn_id.is_empty() { "No Connection" } else { &self.active_conn_id }, Style::default().fg(self.theme.success)),
+            Span::styled(
+                " DB: ",
+                Style::default()
+                    .fg(self.theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                if self.active_conn_id.is_empty() {
+                    "No Connection"
+                } else {
+                    &self.active_conn_id
+                },
+                Style::default().fg(self.theme.success),
+            ),
             Span::raw(" "),
             Span::styled(conn_status, Style::default().fg(self.theme.success)),
             Span::raw(" │ "),
-            Span::styled("Focus: ", Style::default().fg(self.theme.warning).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Focus: ",
+                Style::default()
+                    .fg(self.theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(focus_str, Style::default().fg(self.theme.accent)),
             Span::raw(" │ "),
             Span::raw(&self.status_msg),
         ];
 
-        let right_spans = vec![
-            Span::styled("[Tab] Focus │ [Ctrl+Enter/E] Run Stmt │ [i/Esc] Vim Mode │ [F5] Run All ", Style::default().fg(self.theme.muted)),
-        ];
+        let right_spans = vec![Span::styled(
+            "[Tab] Focus │ [Ctrl+Enter/E] Run Stmt │ [i/Esc] Vim Mode │ [F5] Run All ",
+            Style::default().fg(self.theme.muted),
+        )];
 
         let line = Line::from(left_spans);
         let right_line = Line::from(right_spans);
 
         let p_left = Paragraph::new(line).style(Style::default().bg(Color::Rgb(31, 35, 53)));
-        let p_right = Paragraph::new(right_line).alignment(Alignment::Right).style(Style::default().bg(Color::Rgb(31, 35, 53)));
+        let p_right = Paragraph::new(right_line)
+            .alignment(Alignment::Right)
+            .style(Style::default().bg(Color::Rgb(31, 35, 53)));
 
         frame.render_widget(p_left, area);
         frame.render_widget(p_right, area);
@@ -1418,23 +1839,67 @@ impl App {
         frame.render_widget(Clear, modal_area);
 
         let block = Block::default()
-            .title(Span::styled(" 📋 Copy to Clipboard ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(
+                " 📋 Copy to Clipboard ",
+                Style::default()
+                    .fg(self.theme.title)
+                    .add_modifier(Modifier::BOLD),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.theme.border_active));
 
         let cell_val = truncate_str(&self.current_cell_value(), 25);
         let cur_row = self.table_state.selected().map(|r| r + 1).unwrap_or(1);
-        let total_rows = self.query_result.as_ref().map(|r| r.total_rows).unwrap_or(0);
+        let total_rows = self
+            .query_result
+            .as_ref()
+            .map(|r| r.total_rows)
+            .unwrap_or(0);
 
         let items = [
-            ("1", "📄", "Copy Selected Cell", format!("[{}] \"{}\"", self.current_col_name(), cell_val)),
-            ("2", "📦", "Copy Row as JSON", format!("Row #{} as key-value JSON object", cur_row)),
-            ("3", "📊", "Copy Row as CSV", format!("Row #{} comma-separated values", cur_row)),
-            ("4", "📝", "Copy Row as SQL INSERT", format!("INSERT INTO table VALUES (...) for row #{}", cur_row)),
-            ("5", "📑", "Copy ALL Results as CSV", format!("Entire query result ({} rows)", total_rows)),
-            ("6", "🗃️", "Copy ALL Results as JSON", format!("Array of {} JSON objects", total_rows)),
-            ("7", "📋", "Copy ALL as Markdown Table", format!("Formatted Markdown table ({} rows)", total_rows)),
+            (
+                "1",
+                "📄",
+                "Copy Selected Cell",
+                format!("[{}] \"{}\"", self.current_col_name(), cell_val),
+            ),
+            (
+                "2",
+                "📦",
+                "Copy Row as JSON",
+                format!("Row #{} as key-value JSON object", cur_row),
+            ),
+            (
+                "3",
+                "📊",
+                "Copy Row as CSV",
+                format!("Row #{} comma-separated values", cur_row),
+            ),
+            (
+                "4",
+                "📝",
+                "Copy Row as SQL INSERT",
+                format!("INSERT INTO table VALUES (...) for row #{}", cur_row),
+            ),
+            (
+                "5",
+                "📑",
+                "Copy ALL Results as CSV",
+                format!("Entire query result ({} rows)", total_rows),
+            ),
+            (
+                "6",
+                "🗃️",
+                "Copy ALL Results as JSON",
+                format!("Array of {} JSON objects", total_rows),
+            ),
+            (
+                "7",
+                "📋",
+                "Copy ALL as Markdown Table",
+                format!("Formatted Markdown table ({} rows)", total_rows),
+            ),
         ];
 
         let mut lines = vec![Line::from("")];
@@ -1442,14 +1907,21 @@ impl App {
             let is_sel = i == self.copy_menu_cursor;
             let prefix = if is_sel { " ▶ " } else { "   " };
             let name_style = if is_sel {
-                Style::default().fg(self.theme.success).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(self.theme.success)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(self.theme.fg)
             };
 
             lines.push(Line::from(vec![
                 Span::styled(prefix, Style::default().fg(self.theme.border_active)),
-                Span::styled(format!("[{}] ", num), Style::default().fg(self.theme.warning).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    format!("[{}] ", num),
+                    Style::default()
+                        .fg(self.theme.warning)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(format!("{} ", icon)),
                 Span::styled(format!("{:<26} ", name), name_style),
                 Span::styled(desc.clone(), Style::default().fg(self.theme.muted)),
@@ -1457,7 +1929,10 @@ impl App {
         }
 
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled("   [Enter / 1-7: Select & Copy │ Esc / q: Close]", Style::default().fg(self.theme.muted))));
+        lines.push(Line::from(Span::styled(
+            "   [Enter / 1-7: Select & Copy │ Esc / q: Close]",
+            Style::default().fg(self.theme.muted),
+        )));
 
         let p = Paragraph::new(lines).block(block);
         frame.render_widget(p, modal_area);
@@ -1468,7 +1943,12 @@ impl App {
         frame.render_widget(Clear, modal_area);
 
         let block = Block::default()
-            .title(Span::styled(" 🔌 Add New Database Connection ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
+            .title(Span::styled(
+                " 🔌 Add New Database Connection ",
+                Style::default()
+                    .fg(self.theme.title)
+                    .add_modifier(Modifier::BOLD),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(self.theme.border_active));
@@ -1489,9 +1969,20 @@ impl App {
             .split(inner);
 
         // 1. Connection Name
-        let name_border = if self.new_conn_field == 0 { self.theme.border_active } else { self.theme.border_inactive };
+        let name_border = if self.new_conn_field == 0 {
+            self.theme.border_active
+        } else {
+            self.theme.border_inactive
+        };
         let name_block = Block::default()
-            .title(Span::styled(" Connection Name ", Style::default().fg(if self.new_conn_field == 0 { self.theme.border_active } else { self.theme.fg })))
+            .title(Span::styled(
+                " Connection Name ",
+                Style::default().fg(if self.new_conn_field == 0 {
+                    self.theme.border_active
+                } else {
+                    self.theme.fg
+                }),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(name_border));
@@ -1502,23 +1993,49 @@ impl App {
         frame.render_widget(name_p, chunks[0]);
 
         // 2. Driver / Type Selector
-        let type_border = if self.new_conn_field == 1 { self.theme.border_active } else { self.theme.border_inactive };
+        let type_border = if self.new_conn_field == 1 {
+            self.theme.border_active
+        } else {
+            self.theme.border_inactive
+        };
         let type_block = Block::default()
-            .title(Span::styled(" Database Driver (◄ / ► to change) ", Style::default().fg(if self.new_conn_field == 1 { self.theme.border_active } else { self.theme.fg })))
+            .title(Span::styled(
+                " Database Driver (◄ / ► to change) ",
+                Style::default().fg(if self.new_conn_field == 1 {
+                    self.theme.border_active
+                } else {
+                    self.theme.fg
+                }),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(type_border));
         let (cur_id, cur_label, _) = DRIVER_TYPES[self.new_conn_type_idx];
         let type_text = format!(" ◀  {} ({})  ▶", cur_label, cur_id);
         let type_p = Paragraph::new(type_text)
-            .style(Style::default().fg(self.theme.warning).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(self.theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            )
             .block(type_block);
         frame.render_widget(type_p, chunks[1]);
 
         // 3. Connection URL
-        let url_border = if self.new_conn_field == 2 { self.theme.border_active } else { self.theme.border_inactive };
+        let url_border = if self.new_conn_field == 2 {
+            self.theme.border_active
+        } else {
+            self.theme.border_inactive
+        };
         let url_block = Block::default()
-            .title(Span::styled(" Connection URL / URI ", Style::default().fg(if self.new_conn_field == 2 { self.theme.border_active } else { self.theme.fg })))
+            .title(Span::styled(
+                " Connection URL / URI ",
+                Style::default().fg(if self.new_conn_field == 2 {
+                    self.theme.border_active
+                } else {
+                    self.theme.fg
+                }),
+            ))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(url_border));
@@ -1530,16 +2047,24 @@ impl App {
 
         // 4. Status / Error hint
         if let Some(err) = &self.new_conn_error {
-            let err_p = Paragraph::new(format!(" ✖ {}", err))
-                .style(Style::default().fg(self.theme.error).add_modifier(Modifier::BOLD));
+            let err_p = Paragraph::new(format!(" ✖ {}", err)).style(
+                Style::default()
+                    .fg(self.theme.error)
+                    .add_modifier(Modifier::BOLD),
+            );
             frame.render_widget(err_p, chunks[3]);
         } else if self.is_testing_conn {
-            let test_p = Paragraph::new(" ⏳ Testing and establishing connection...")
-                .style(Style::default().fg(self.theme.warning).add_modifier(Modifier::BOLD));
+            let test_p = Paragraph::new(" ⏳ Testing and establishing connection...").style(
+                Style::default()
+                    .fg(self.theme.warning)
+                    .add_modifier(Modifier::BOLD),
+            );
             frame.render_widget(test_p, chunks[3]);
         } else {
-            let hint_p = Paragraph::new(" [Tab / Shift+Tab] Next/Prev Field │ [Enter] Save & Test │ [Esc] Cancel")
-                .style(Style::default().fg(self.theme.muted));
+            let hint_p = Paragraph::new(
+                " [Tab / Shift+Tab] Next/Prev Field │ [Enter] Save & Test │ [Esc] Cancel",
+            )
+            .style(Style::default().fg(self.theme.muted));
             frame.render_widget(hint_p, chunks[3]);
         }
 
@@ -1550,25 +2075,49 @@ impl App {
             .split(chunks[4]);
 
         let save_style = if self.new_conn_field == 3 {
-            Style::default().bg(self.theme.success).fg(self.theme.bg).add_modifier(Modifier::BOLD)
+            Style::default()
+                .bg(self.theme.success)
+                .fg(self.theme.bg)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(self.theme.success)
         };
         let save_btn = Paragraph::new("  [ Enter: Test & Save ]  ")
             .alignment(Alignment::Center)
             .style(save_style)
-            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(if self.new_conn_field == 3 { self.theme.success } else { self.theme.border_inactive })));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(if self.new_conn_field == 3 {
+                        self.theme.success
+                    } else {
+                        self.theme.border_inactive
+                    })),
+            );
         frame.render_widget(save_btn, btn_chunks[0]);
 
         let cancel_style = if self.new_conn_field == 4 {
-            Style::default().bg(self.theme.error).fg(self.theme.bg).add_modifier(Modifier::BOLD)
+            Style::default()
+                .bg(self.theme.error)
+                .fg(self.theme.bg)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(self.theme.muted)
         };
         let cancel_btn = Paragraph::new("  [ Esc: Cancel ]  ")
             .alignment(Alignment::Center)
             .style(cancel_style)
-            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Rounded).border_style(Style::default().fg(if self.new_conn_field == 4 { self.theme.error } else { self.theme.border_inactive })));
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(BorderType::Rounded)
+                    .border_style(Style::default().fg(if self.new_conn_field == 4 {
+                        self.theme.error
+                    } else {
+                        self.theme.border_inactive
+                    })),
+            );
         frame.render_widget(cancel_btn, btn_chunks[1]);
     }
 }

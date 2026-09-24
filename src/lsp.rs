@@ -40,7 +40,11 @@ struct LspResponse {
 
 #[derive(Clone)]
 pub struct LspClient {
-    tx: mpsc::Sender<(Option<i64>, Vec<u8>, Option<oneshot::Sender<Result<Value, String>>>)>,
+    tx: mpsc::Sender<(
+        Option<i64>,
+        Vec<u8>,
+        Option<oneshot::Sender<Result<Value, String>>>,
+    )>,
     next_id: Arc<AtomicI64>,
     doc_ver: Arc<AtomicI64>,
 }
@@ -65,9 +69,15 @@ impl LspClient {
         let mut stdin = child.stdin.take().ok_or("Failed to get stdin")?;
         let mut stdout = child.stdout.take().ok_or("Failed to get stdout")?;
 
-        let (req_tx, mut req_rx) =
-            mpsc::channel::<(Option<i64>, Vec<u8>, Option<oneshot::Sender<Result<Value, String>>>)>(64);
-        let pending = Arc::new(Mutex::new(HashMap::<i64, oneshot::Sender<Result<Value, String>>>::new()));
+        let (req_tx, mut req_rx) = mpsc::channel::<(
+            Option<i64>,
+            Vec<u8>,
+            Option<oneshot::Sender<Result<Value, String>>>,
+        )>(64);
+        let pending = Arc::new(Mutex::new(HashMap::<
+            i64,
+            oneshot::Sender<Result<Value, String>>,
+        >::new()));
         let pending_reader = Arc::clone(&pending);
 
         // Reader loop parsing Content-Length: <n>\r\n\r\n<json>
@@ -133,7 +143,9 @@ impl LspClient {
                     pending_writer.lock().await.insert(id, sender);
                 }
                 let header = format!("Content-Length: {}\r\n\r\n", payload.len());
-                if stdin.write_all(header.as_bytes()).await.is_err() || stdin.write_all(&payload).await.is_err() {
+                if stdin.write_all(header.as_bytes()).await.is_err()
+                    || stdin.write_all(&payload).await.is_err()
+                {
                     break;
                 }
                 let _ = stdin.flush().await;
@@ -156,7 +168,10 @@ impl LspClient {
         let home = std::env::var("HOME").unwrap_or_default();
         let candidates = [
             PathBuf::from(format!("{}/.local/share/nvim/mason/bin/sqls", home)),
-            PathBuf::from(format!("{}/.local/share/nvim/mason/packages/sqls/sqls", home)),
+            PathBuf::from(format!(
+                "{}/.local/share/nvim/mason/packages/sqls/sqls",
+                home
+            )),
         ];
 
         for p in &candidates {
@@ -204,29 +219,38 @@ impl LspClient {
 
         let _ = self.call("initialize", params).await?;
         self.notify("initialized", serde_json::json!({})).await?;
-        self.notify("textDocument/didOpen", serde_json::json!({
-            "textDocument": {
-                "uri": "file:///tmp/query.sql",
-                "languageId": "sql",
-                "version": 1,
-                "text": "SELECT * FROM "
-            }
-        })).await?;
+        self.notify(
+            "textDocument/didOpen",
+            serde_json::json!({
+                "textDocument": {
+                    "uri": "file:///tmp/query.sql",
+                    "languageId": "sql",
+                    "version": 1,
+                    "text": "SELECT * FROM "
+                }
+            }),
+        )
+        .await?;
 
         Ok(())
     }
 
     pub async fn update_document(&self, text: &str) {
         let ver = self.doc_ver.fetch_add(1, Ordering::SeqCst);
-        let _ = self.notify("textDocument/didChange", serde_json::json!({
-            "textDocument": {
-                "uri": "file:///tmp/query.sql",
-                "version": ver
-            },
-            "contentChanges": [
-                { "text": text }
-            ]
-        })).await;
+        let _ = self
+            .notify(
+                "textDocument/didChange",
+                serde_json::json!({
+                    "textDocument": {
+                        "uri": "file:///tmp/query.sql",
+                        "version": ver
+                    },
+                    "contentChanges": [
+                        { "text": text }
+                    ]
+                }),
+            )
+            .await;
     }
 
     pub async fn get_completions(&self, line: usize, col: usize) -> Vec<CompletionItem> {
@@ -251,9 +275,19 @@ impl LspClient {
             };
 
             for it in list {
-                let label = it.get("label").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-                let detail = it.get("detail").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let insert_text = it.get("insertText").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let label = it
+                    .get("label")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let detail = it
+                    .get("detail")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let insert_text = it
+                    .get("insertText")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
                 if !label.is_empty() {
                     items.push(CompletionItem {
                         label,
@@ -305,5 +339,7 @@ impl LspClient {
 }
 
 fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    haystack.windows(needle.len()).position(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
 }
