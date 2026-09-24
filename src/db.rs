@@ -230,10 +230,18 @@ impl DbManager {
 
         match pool {
             DbPool::Postgres(p) => {
-                let sql = "SELECT table_schema, table_name, table_type \
-                           FROM information_schema.tables \
-                           WHERE table_schema NOT IN ('pg_catalog', 'information_schema') \
-                           ORDER BY table_schema, table_name;";
+                let sql = "SELECT n.nspname AS table_schema, \
+                                  c.relname AS table_name, \
+                                  CASE c.relkind \
+                                      WHEN 'v' THEN 'VIEW' \
+                                      WHEN 'm' THEN 'VIEW' \
+                                      ELSE 'BASE TABLE' \
+                                  END AS table_type \
+                           FROM pg_class c \
+                           JOIN pg_namespace n ON n.oid = c.relnamespace \
+                           WHERE n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast') \
+                             AND c.relkind IN ('r', 'v', 'm', 'p') \
+                           ORDER BY n.nspname, c.relname;";
 
                 let rows = sqlx::query(sql)
                     .fetch_all(p)
@@ -358,10 +366,14 @@ impl DbManager {
 
         match pool {
             DbPool::Postgres(p) => {
-                let sql = "SELECT column_name, data_type \
-                           FROM information_schema.columns \
-                           WHERE table_schema = $1 AND table_name = $2 \
-                           ORDER BY ordinal_position;";
+                let sql = "SELECT a.attname AS column_name, \
+                                  format_type(a.atttypid, a.atttypmod) AS data_type \
+                           FROM pg_attribute a \
+                           JOIN pg_class c ON c.oid = a.attrelid \
+                           JOIN pg_namespace n ON n.oid = c.relnamespace \
+                           WHERE n.nspname = $1 AND c.relname = $2 \
+                             AND a.attnum > 0 AND NOT a.attisdropped \
+                           ORDER BY a.attnum;";
 
                 let rows = sqlx::query(sql)
                     .bind(schema)

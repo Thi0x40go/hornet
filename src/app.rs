@@ -292,14 +292,6 @@ impl App {
             if let Some(conn_sec) = self.tree.get_mut(0) {
                 conn_sec.children = conn_nodes;
             }
-
-            if !self.active_conn_id.is_empty() {
-                let active = self.active_conn_id.clone();
-                if let Ok(ping) = self.db.ping(&active).await {
-                    self.conn_health.insert(active.clone(), (ping.online, ping.latency_ms));
-                }
-                self.load_structure_for_active().await;
-            }
         }
     }
 
@@ -494,6 +486,13 @@ impl App {
             if idx < self.flat_nodes.len() {
                 let node = self.flat_nodes[idx].clone();
                 match &node.node_type {
+                    NodeType::Connection(id) => {
+                        if !node.loaded {
+                            self.active_conn_id = id.clone();
+                            self.load_structure_for_active().await;
+                            return;
+                        }
+                    }
                     NodeType::Table { conn_id, schema, name } => {
                         if !node.loaded {
                             let cid = conn_id.clone();

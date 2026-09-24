@@ -32,21 +32,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         default_hook(info);
     }));
 
-    // Start LSP Client if sqls is available
-    let lsp = LspClient::spawn().await.ok();
-
-    // Terminal initialization
+    // Terminal initialization FIRST (sub-millisecond!)
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(lsp).await;
-    let mut needs_redraw = true;
+    let mut app = App::new(None).await;
+
+    // Draw first frame IMMEDIATELY (sub-millisecond!)
+    terminal.draw(|f| app.render(f))?;
+
+    // Start LSP Client asynchronously in background
+    let (lsp_tx, mut lsp_rx) = tokio::sync::mpsc::channel::<LspClient>(1);
+    tokio::spawn(async move {
+        if let Ok(client) = LspClient::spawn().await {
+            let _ = lsp_tx.send(client).await;
+        }
+    });
+
+    // Auto-connect to active database right after first frame is drawn
+    if !app.active_conn_id.is_empty() {
+        app.status_msg = "Connecting to database...".to_string();
+        terminal.draw(|f| app.render(f))?;
+        let active = app.active_conn_id.clone();
+        if let Ok(ping) = app.db.ping(&active).await {
+            app.conn_health.insert(active.clone(), (ping.online, ping.latency_ms));
+        }
+        app.load_structure_for_active().await;
+        terminal.draw(|f| app.render(f))?;
+    }
+
+    let mut needs_redraw = false;
 
     // Main event loop
     loop {
+        if app.lsp.is_none() {
+            if let Ok(client) = lsp_rx.try_recv() {
+                app.lsp = Some(client);
+                needs_redraw = true;
+            }
+        }
+
         if needs_redraw {
             terminal.draw(|f| app.render(f))?;
             needs_redraw = false;

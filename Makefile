@@ -9,7 +9,7 @@ build:
 	@echo "==> Building Hornet (Pure Rust + Ratatui)..."
 	@mkdir -p bin
 	cargo build --release
-	cp target/release/hornet bin/hornet
+	cp --remove-destination target/release/hornet bin/hornet
 	@echo "==> Build complete: bin/hornet"
 
 run: build
