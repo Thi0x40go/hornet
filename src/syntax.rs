@@ -130,6 +130,7 @@ fn byte_index(s: &str, char_idx: usize) -> usize {
         .unwrap_or(s.len())
 }
 
+#[allow(dead_code)]
 pub fn highlight_lines<'a>(lines: &'a [String], theme: &Theme) -> Vec<Line<'a>> {
     lines
         .iter()

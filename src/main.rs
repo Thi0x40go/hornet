@@ -1,8 +1,10 @@
 mod app;
 mod clipboard;
+mod config;
+mod db;
 mod lsp;
 mod models;
-mod rpc;
+mod notes;
 mod syntax;
 mod theme;
 mod vim;
@@ -16,7 +18,6 @@ use crossterm::{
 };
 use lsp::LspClient;
 use ratatui::{backend::CrosstermBackend, Terminal};
-use rpc::HornetClient;
 use std::io;
 use std::time::Duration;
 use vim::{next_word_start, prev_word_start, word_end, VimMode};
@@ -31,15 +32,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         default_hook(info);
     }));
 
-    // Start Hornet RPC Engine Client
-    let client = match HornetClient::spawn().await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Error starting hornet-server: {}", e);
-            std::process::exit(1);
-        }
-    };
-
     // Start LSP Client if sqls is available
     let lsp = LspClient::spawn().await.ok();
 
@@ -50,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new(client, lsp).await;
+    let mut app = App::new(lsp).await;
 
     // Main event loop
     loop {
@@ -234,7 +226,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('s') {
                     let note_name = app.current_note.clone().unwrap_or_else(|| format!("query_{}", chrono::Local::now().format("%Y%m%d_%H%M%S")));
                     let content = app.editor_lines.join("\n");
-                    if let Ok(saved_path) = app.client.save_note(&note_name, &content).await {
+                    if let Ok(saved_path) = notes::save_note(&note_name, &content) {
                         app.current_note = Some(note_name);
                         app.set_toast(format!("Saved to {}", saved_path));
                         app.load_notes().await;

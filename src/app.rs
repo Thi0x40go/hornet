@@ -1,7 +1,7 @@
 use crate::clipboard::copy_text;
+use crate::db::DbManager;
 use crate::lsp::{CompletionItem, LspClient};
 use crate::models::*;
-use crate::rpc::HornetClient;
 use crate::syntax::highlight_sql;
 use crate::theme::Theme;
 use crate::vim::{VimMode, VimState};
@@ -20,7 +20,7 @@ use std::time::Instant;
 
 pub const DRIVER_TYPES: &[(&str, &str, &str)] = &[
     ("postgres", "PostgreSQL", "postgresql://user:password@localhost:5432/dbname?sslmode=disable"),
-    ("mysql", "MySQL / MariaDB", "user:password@tcp(localhost:3306)/dbname"),
+    ("mysql", "MySQL / MariaDB", "mysql://user:password@localhost:3306/dbname"),
     ("sqlite", "SQLite", "/path/to/database.db"),
     ("sqlserver", "SQL Server (MSSQL)", "sqlserver://user:password@localhost:1433?database=master"),
     ("clickhouse", "ClickHouse", "clickhouse://user:password@localhost:9000/default"),
@@ -64,7 +64,7 @@ pub struct TreeNode {
 pub struct App {
     pub theme: Theme,
     pub focus: FocusArea,
-    pub client: HornetClient,
+    pub db: DbManager,
     pub lsp: Option<LspClient>,
 
     // Drawer / Explorer
@@ -121,11 +121,11 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(client: HornetClient, lsp: Option<LspClient>) -> Self {
+    pub async fn new(lsp: Option<LspClient>) -> Self {
         let mut app = Self {
             theme: Theme::default(),
             focus: FocusArea::Drawer,
-            client,
+            db: DbManager::new(),
             lsp,
             tree: vec![
                 TreeNode {
@@ -239,7 +239,7 @@ impl App {
         let conn_name = self.new_conn_name.trim().to_string();
         self.status_msg = format!("Testing and adding connection '{}'...", conn_name);
 
-        match self.client.add_connection(&conn_name, driver_type, self.new_conn_url.trim()).await {
+        match self.db.add_connection(&conn_name, driver_type, self.new_conn_url.trim()).await {
             Ok(conns) => {
                 self.is_testing_conn = false;
                 self.show_new_conn_modal = false;
@@ -261,7 +261,7 @@ impl App {
     }
 
     pub async fn load_connections(&mut self) {
-        if let Ok(conns) = self.client.list_connections().await {
+        if let Ok(conns) = self.db.list_connections() {
             let mut conn_nodes = vec![TreeNode {
                 label: "+ [New Connection]".to_string(),
                 node_type: NodeType::ConnectionNew,
@@ -274,7 +274,7 @@ impl App {
             for c in &conns {
                 let id = c.id.clone();
                 // Check health in background
-                if let Ok(ping) = self.client.ping(&id).await {
+                if let Ok(ping) = self.db.ping(&id).await {
                     self.conn_health.insert(id.clone(), (ping.online, ping.latency_ms));
                 } else {
                     self.conn_health.insert(id.clone(), (false, 0));
@@ -394,13 +394,13 @@ impl App {
             return;
         }
         let conn_id = self.active_conn_id.clone();
-        if let Ok(resp) = self.client.get_structure(&conn_id).await {
+        if let Ok(resp) = self.db.get_structure(&conn_id).await {
             self.apply_structure_response(&conn_id, resp);
         }
     }
 
     pub async fn load_columns_for_table(&mut self, conn_id: &str, schema: &str, table: &str) {
-        if let Ok(cols) = self.client.get_columns(conn_id, schema, table).await {
+        if let Ok(cols) = self.db.get_columns(conn_id, schema, table).await {
             let mut col_nodes = Vec::new();
             for c in cols {
                 self.local_columns.insert(c.name.clone());
@@ -444,7 +444,7 @@ impl App {
     }
 
     pub async fn load_notes(&mut self) {
-        if let Ok(n_list) = self.client.list_notes().await {
+        if let Ok(n_list) = crate::notes::list_notes() {
             if let Some(notes_sec) = self.tree.get_mut(1) {
                 let mut note_items = vec![TreeNode {
                     label: "+ [New Note]".to_string(),
@@ -546,7 +546,7 @@ impl App {
                             self.toggle_selected_node().await;
                         } else {
                             self.status_msg = format!("Switching database to '{}'...", name);
-                            match self.client.select_database(&conn_id, &name).await {
+                            match self.db.select_database(&conn_id, &name).await {
                                 Ok(resp) => {
                                     self.active_conn_id = conn_id.clone();
                                     self.apply_structure_response(&conn_id, resp);
@@ -585,7 +585,7 @@ impl App {
                         self.vim.enter_insert(&self.editor_lines, 0, 14);
                     }
                     NodeType::Note { path, name } => {
-                        if let Ok(content) = self.client.read_note(&path).await {
+                        if let Ok(content) = crate::notes::read_note(&path) {
                             self.editor_lines = content.lines().map(|s| s.to_string()).collect();
                             if self.editor_lines.is_empty() {
                                 self.editor_lines = vec![String::new()];
@@ -739,7 +739,7 @@ impl App {
         self.status_msg = format!("Executing {}...", desc);
         let start = Instant::now();
 
-        match self.client.execute(&self.active_conn_id, &query).await {
+        match self.db.execute(&self.active_conn_id, &query).await {
             Ok(res) => {
                 self.is_executing = false;
                 self.results_error = None;

@@ -16,14 +16,11 @@
   - Classic Vim motions: `h`, `j`, `k`, `l`, `w`, `b`, `e`, `0`, `$`, `^`, `G`, `gg`, `Ctrl+u`, `Ctrl+d`.
   - Vim operators: `dd`, `dw`, `d$`, `cc`, `cw`, `yy`, `yw`, `x`, `p`, `P`, and `u` (undo stack).
   - Visual mode line selection and block yanking/deletion.
-- **🔌 Multi-Engine Database Support**:
-  - **PostgreSQL**
+- **🔌 Native Async Database Drivers**:
+  - **PostgreSQL** (with native `rustls` TLS encryption)
   - **MySQL / MariaDB**
-  - **SQLite**
-  - **SQL Server (MSSQL)**
-  - **ClickHouse**
-  - **DuckDB**
-  - **Oracle**
+  - **SQLite** (local embedded files)
+  - *(Extensible async pool architecture via `sqlx`)*
 - **🗄️ Multi-Database Introspection & Live Switching**:
   - Automatically lists **all databases** available on a server connection.
   - Active database is highlighted with schemas, tables, and column hierarchies.
@@ -57,28 +54,25 @@
 
 ## 🏗️ Architecture
 
-Hornet is designed with a clean, decoupled client-daemon architecture:
+Hornet is built as a single, high-performance, **100% pure Rust** standalone binary:
 
 ```
-┌────────────────────────────────────────────────────────┐
-│                      Hornet TUI                        │
-│          (Rust + Ratatui + Crossterm + Tokio)          │
-│                                                        │
-│  • Vim Modal Engine       • Autocomplete / LSP Client  │
-│  • Syntax Highlighter     • Results Grid & Exporter    │
-└───────────────────────────┬────────────────────────────┘
-                            │ JSON-RPC (stdin / stdout)
-┌───────────────────────────▼────────────────────────────┐
-│                  Hornet Engine Daemon                  │
-│                        (Go)                            │
-│                                                        │
-│  • Connection Pooling     • Multi-DB Driver Adapters   │
-│  • Schema Introspection   • Query Execution Callbacks  │
-└────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Hornet Standalone Binary                        │
+│                 (Rust + Ratatui + Crossterm + Tokio)                   │
+├────────────────────────────────────────────────────────────────────────┤
+│  • Vim Modal Engine               • Dynamic Results Grid & Exporter    │
+│  • Local & LSP Autocompletion     • Interactive Sidebar & Note Manager │
+│  • ANSI Syntax Highlighting       • Multi-DB Hierarchy Navigation      │
+├────────────────────────────────────────────────────────────────────────┤
+│                Async Native Database Drivers (sqlx)                    │
+│   • PostgreSQL (rustls)    • MySQL / MariaDB    • SQLite (embedded)    │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-1. **Frontend (`hornet`)**: High-performance Rust binary utilizing Ratatui for TUI rendering and crossterm for raw terminal event streaming.
-2. **Backend Engine (`hornet-server`)**: Lightweight Go daemon providing database drivers, connection pooling, and introspection over standard JSON-RPC.
+- **Single Binary (`hornet`)**: Zero external daemon processes, zero runtime C dependencies, and no background IPC overhead. Everything runs seamlessly in a unified Tokio asynchronous runtime.
+- **Async Driver Pool (`sqlx`)**: Native asynchronous connection pooling with Rustls TLS encryption.
+
 
 ---
 
@@ -147,33 +141,39 @@ Hornet is designed with a clean, decoupled client-daemon architecture:
 ### Prerequisites
 
 - **Rust** (1.75+ recommended): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Go** (1.22+ recommended): `https://go.dev/dl/`
 - *(Optional)* **sqls** (for SQL language server completions): `go install github.com/sqls-server/sqls@latest`
 
 ### Build from Source
 
-Clone the repository and run `make`:
+Clone the repository and compile with Cargo:
 
 ```bash
 git clone https://github.com/thiagopinheiro/hornet.git
 cd hornet
 
-# Build both Go engine and Rust TUI
+# Build release binary
 make build
 
 # Run Hornet
 ./bin/hornet
 ```
 
+Or run directly with cargo:
+
+```bash
+cargo run --release
+```
+
 ### Install to System
 
-To install `hornet` and `hornet-server` to your user binary path (`~/.local/bin`):
+To install `hornet` directly to your user binary path (`~/.local/bin`):
 
 ```bash
 make install
 ```
 
 Make sure `~/.local/bin` is in your `$PATH`.
+
 
 ---
 

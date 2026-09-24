@@ -58,6 +58,7 @@ pub struct PingResponse {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct HistoryEntry {
     pub conn_id: String,
     pub query: String,
