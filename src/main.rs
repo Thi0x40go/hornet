@@ -24,6 +24,47 @@ use vim::{next_word_start, prev_word_start, word_end, VimMode};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    if args
+        .iter()
+        .any(|a| a == "--install-lsp" || a == "--lsp-install")
+    {
+        println!("==> Downloading and configuring sqls language server...");
+        let target_dir = if std::path::Path::new("bin").is_dir() {
+            println!("==> Local project ./bin directory detected, installing to ./bin/sqls");
+            Some(std::path::PathBuf::from("bin"))
+        } else {
+            None
+        };
+        match lsp::LspClient::download_sqls(target_dir).await {
+            Ok(p) => {
+                println!("==> Successfully installed sqls at: {}", p.display());
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("Error installing sqls: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
+    if args.iter().any(|a| a == "--version" || a == "-v") {
+        println!("Hornet v{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("🐝 Hornet — Fast Terminal Database Client");
+        println!();
+        println!("Usage: hornet [OPTIONS]");
+        println!();
+        println!("Options:");
+        println!("  --install-lsp    Download and install the sqls language server");
+        println!("  -v, --version    Show version information");
+        println!("  -h, --help       Show this help message");
+        return Ok(());
+    }
+
     // Setup panic hook to restore terminal
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {

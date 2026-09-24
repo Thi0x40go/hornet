@@ -142,7 +142,10 @@ Hornet is built as a single, high-performance, **100% pure Rust** standalone bin
 ### Prerequisites
 
 - **Rust** (1.75+ recommended): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- *(Optional)* **sqls** (for SQL language server completions): `go install github.com/sqls-server/sqls@latest`
+- *(Optional)* **sqls** (for advanced SQL language server completions):
+  - Hornet can download it automatically on first launch or via: `make lsp` / `hornet --install-lsp`
+  - Or install via Go: `go install github.com/sqls-server/sqls@latest`
+  - Or use pre-existing binaries in `$PATH`, `~/.local/share/hornet/bin`, or Neovim Mason.
 
 ### Build from Source
 

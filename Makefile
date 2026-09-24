@@ -1,7 +1,7 @@
 PREFIX ?= $(HOME)/.local
 BIN_DIR ?= $(PREFIX)/bin
 
-.PHONY: all build run install clean
+.PHONY: all build run install lsp clean
 
 all: build
 
@@ -11,6 +11,11 @@ build:
 	cargo build --release
 	cp --remove-destination target/release/hornet bin/hornet
 	@echo "==> Build complete: bin/hornet"
+
+lsp:
+	@echo "==> Downloading and configuring sqls LSP..."
+	@mkdir -p bin
+	cargo run -- --install-lsp
 
 run: build
 	./bin/hornet

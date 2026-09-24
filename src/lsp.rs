@@ -51,7 +51,10 @@ pub struct LspClient {
 
 impl LspClient {
     pub async fn spawn() -> Result<Self, String> {
-        let bin_path = Self::find_sqls_bin()?;
+        let bin_path = match Self::find_sqls_bin() {
+            Ok(p) => p,
+            Err(_) => Self::download_sqls(None).await?,
+        };
         let config_path = Self::find_sqls_config();
 
         let mut cmd = Command::new(&bin_path);
@@ -164,22 +167,67 @@ impl LspClient {
         Ok(client)
     }
 
-    fn find_sqls_bin() -> Result<PathBuf, String> {
+    pub fn find_sqls_bin() -> Result<PathBuf, String> {
         let home = std::env::var("HOME").unwrap_or_default();
-        let candidates = [
-            PathBuf::from(format!("{}/.local/share/nvim/mason/bin/sqls", home)),
-            PathBuf::from(format!(
-                "{}/.local/share/nvim/mason/packages/sqls/sqls",
-                home
-            )),
-        ];
 
-        for p in &candidates {
-            if p.exists() {
+        // 1. Explicit environment variable override
+        if let Ok(path_str) =
+            std::env::var("HORNET_SQLS_PATH").or_else(|_| std::env::var("SQLS_BIN"))
+        {
+            let p = PathBuf::from(path_str);
+            if p.is_file() {
+                return Ok(p);
+            }
+        }
+
+        // 2. Project-local binaries (e.g. ./bin/sqls in the current working directory)
+        let local_candidates = [
+            PathBuf::from("./bin/sqls"),
+            PathBuf::from("bin/sqls"),
+            PathBuf::from("./sqls"),
+            PathBuf::from("../bin/sqls"),
+        ];
+        for p in &local_candidates {
+            if p.is_file() {
                 return Ok(p.clone());
             }
         }
 
+        // 3. Hornet dedicated application data directories
+        let hornet_candidates = [
+            dirs::data_local_dir()
+                .unwrap_or_else(|| PathBuf::from(format!("{}/.local/share", home)))
+                .join("hornet")
+                .join("bin")
+                .join("sqls"),
+            dirs::config_dir()
+                .unwrap_or_else(|| PathBuf::from(format!("{}/.config", home)))
+                .join("hornet")
+                .join("bin")
+                .join("sqls"),
+            PathBuf::from(format!("{}/.local/share/hornet/bin/sqls", home)),
+        ];
+        for p in &hornet_candidates {
+            if p.is_file() {
+                return Ok(p.clone());
+            }
+        }
+
+        // 4. Standard developer tool directories (Go, local bin, Cargo)
+        let dev_candidates = [
+            PathBuf::from(format!("{}/go/bin/sqls", home)),
+            PathBuf::from(format!("{}/.local/bin/sqls", home)),
+            PathBuf::from(format!("{}/.cargo/bin/sqls", home)),
+            PathBuf::from("/usr/local/bin/sqls"),
+            PathBuf::from("/usr/bin/sqls"),
+        ];
+        for p in &dev_candidates {
+            if p.is_file() {
+                return Ok(p.clone());
+            }
+        }
+
+        // 5. System PATH lookup
         if let Ok(paths) = std::env::var("PATH") {
             for path in std::env::split_paths(&paths) {
                 let bin = path.join("sqls");
@@ -189,7 +237,162 @@ impl LspClient {
             }
         }
 
-        Err("sqls language server not found".to_string())
+        // 6. Neovim Mason packages (fallback)
+        let mason_candidates = [
+            PathBuf::from(format!("{}/.local/share/nvim/mason/bin/sqls", home)),
+            PathBuf::from(format!(
+                "{}/.local/share/nvim/mason/packages/sqls/sqls",
+                home
+            )),
+        ];
+        for p in &mason_candidates {
+            if p.is_file() {
+                return Ok(p.clone());
+            }
+        }
+
+        Err("sqls language server binary not found. You can run 'hornet --install-lsp' or 'make lsp' to download it automatically.".to_string())
+    }
+
+    /// Automatically downloads and installs the official prebuilt `sqls` binary from GitHub releases.
+    pub async fn download_sqls(target_dir: Option<PathBuf>) -> Result<PathBuf, String> {
+        let os_name = if cfg!(target_os = "macos") {
+            "darwin"
+        } else if cfg!(target_os = "windows") {
+            "windows"
+        } else {
+            "linux"
+        };
+
+        // Determine destination directory: explicit, or ./bin if local project, or ~/.local/share/hornet/bin
+        let bin_dir = if let Some(dir) = target_dir {
+            dir
+        } else if std::path::Path::new("bin").is_dir() {
+            PathBuf::from("bin")
+        } else {
+            let home = std::env::var("HOME").unwrap_or_default();
+            dirs::data_local_dir()
+                .unwrap_or_else(|| PathBuf::from(format!("{}/.local/share", home)))
+                .join("hornet")
+                .join("bin")
+        };
+
+        std::fs::create_dir_all(&bin_dir)
+            .map_err(|e| format!("Failed to create directory {:?}: {}", bin_dir, e))?;
+
+        let target_bin = bin_dir.join(if os_name == "windows" {
+            "sqls.exe"
+        } else {
+            "sqls"
+        });
+
+        // Query GitHub API for latest dynamic release asset URL
+        let api_output = Command::new("curl")
+            .args(&[
+                "-sL",
+                "-H",
+                "User-Agent: hornet-tui",
+                "https://api.github.com/repos/sqls-server/sqls/releases/latest",
+            ])
+            .output()
+            .await;
+
+        let mut download_url = None;
+        if let Ok(output) = api_output {
+            if output.status.success() {
+                if let Ok(val) = serde_json::from_slice::<Value>(&output.stdout) {
+                    if let Some(assets) = val.get("assets").and_then(|v| v.as_array()) {
+                        for a in assets {
+                            if let Some(name) = a.get("name").and_then(|v| v.as_str()) {
+                                if name.contains(os_name) && name.ends_with(".zip") {
+                                    if let Some(u) =
+                                        a.get("browser_download_url").and_then(|v| v.as_str())
+                                    {
+                                        download_url = Some(u.to_string());
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Direct fallback asset if GitHub API is offline or rate-limited
+        let url = download_url.unwrap_or_else(|| {
+            format!(
+                "https://github.com/sqls-server/sqls/releases/download/v0.2.48/sqls-{}-0.2.48.zip",
+                os_name
+            )
+        });
+
+        let tmp_zip = bin_dir.join("sqls_download.tmp.zip");
+
+        // Download via curl
+        let curl_res = Command::new("curl")
+            .args(&["-sL", &url, "-o", tmp_zip.to_str().unwrap_or("sqls.zip")])
+            .status()
+            .await
+            .map_err(|e| {
+                format!(
+                    "Failed to execute curl: {}. Please ensure curl is installed.",
+                    e
+                )
+            })?;
+
+        if !curl_res.success() {
+            let _ = std::fs::remove_file(&tmp_zip);
+            return Err(format!("Failed to download sqls from {}", url));
+        }
+
+        // Unzip archive
+        let unzip_res = Command::new("unzip")
+            .args(&[
+                "-o",
+                tmp_zip.to_str().unwrap_or("sqls.zip"),
+                if os_name == "windows" {
+                    "sqls.exe"
+                } else {
+                    "sqls"
+                },
+                "-d",
+                bin_dir.to_str().unwrap_or("."),
+            ])
+            .status()
+            .await
+            .map_err(|e| {
+                format!(
+                    "Failed to execute unzip: {}. Please ensure unzip is installed.",
+                    e
+                )
+            })?;
+
+        let _ = std::fs::remove_file(&tmp_zip);
+
+        if !unzip_res.success() {
+            return Err("Failed to extract sqls from zip archive".to_string());
+        }
+
+        // Ensure executable permissions on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(metadata) = std::fs::metadata(&target_bin) {
+                let mut perms = metadata.permissions();
+                perms.set_mode(0o755);
+                let _ = std::fs::set_permissions(&target_bin, perms);
+            }
+        }
+
+        if target_bin.is_file() {
+            Ok(target_bin)
+        } else {
+            Err(format!(
+                "sqls binary not found after extraction at {:?}",
+                target_bin
+            ))
+        }
     }
 
     fn find_sqls_config() -> Option<PathBuf> {
