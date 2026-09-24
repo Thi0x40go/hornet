@@ -335,6 +335,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             KeyCode::Char('a') | KeyCode::Char('N') => {
                                 app.open_new_conn_modal();
                             }
+                            KeyCode::Char('d') | KeyCode::Char('x') | KeyCode::Delete => {
+                                app.delete_selected_connection().await;
+                            }
                             KeyCode::Char(' ') | KeyCode::Char('o') | KeyCode::Char('l') | KeyCode::Right => {
                                 app.toggle_selected_node().await;
                             }

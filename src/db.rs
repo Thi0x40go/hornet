@@ -56,6 +56,13 @@ impl DbManager {
         self.list_connections()
     }
 
+    pub fn delete_connection(&mut self, name: &str) -> Result<Vec<ConnectionParams>, String> {
+        self.pools.remove(name);
+        self.connections.remove(name);
+        config::delete_connection(name)?;
+        self.list_connections()
+    }
+
     async fn create_pool(r#type: &str, url_str: &str) -> Result<DbPool, String> {
         let driver = r#type.to_lowercase();
         match driver.as_str() {

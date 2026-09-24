@@ -75,31 +75,32 @@ fn normalize_key(url_str: &str) -> String {
 }
 
 pub fn load_all_connections() -> Vec<ConnectionParams> {
-    let mut seen = HashSet::new();
-    let mut results = Vec::new();
-
-    // 1. Primary: ~/.config/hornet/connections.json
     let hornet_path = default_hornet_connections_path();
-    if let Ok(data) = fs::read_to_string(&hornet_path) {
-        if let Ok(items) = serde_json::from_str::<Vec<DbeePersistenceItem>>(&data) {
-            for item in items {
-                if item.name.is_empty() || item.url.is_empty() {
-                    continue;
+
+    // 1. Primary: if ~/.config/hornet/connections.json exists, it is the authoritative source!
+    if hornet_path.exists() {
+        if let Ok(data) = fs::read_to_string(&hornet_path) {
+            if let Ok(items) = serde_json::from_str::<Vec<DbeePersistenceItem>>(&data) {
+                let mut results = Vec::new();
+                for item in items {
+                    if !item.name.is_empty() && !item.url.is_empty() {
+                        results.push(ConnectionParams {
+                            id: item.name.clone(),
+                            name: item.name,
+                            r#type: item.r#type,
+                            url: item.url,
+                        });
+                    }
                 }
-                let key = normalize_key(&item.url);
-                if seen.insert(key) {
-                    results.push(ConnectionParams {
-                        id: item.name.clone(),
-                        name: item.name,
-                        r#type: item.r#type,
-                        url: item.url,
-                    });
-                }
+                return results;
             }
         }
     }
 
-    // 2. Fallback: ~/.local/state/nvim/dbee/persistence.json
+    // 2. Otherwise, seed from ~/.local/state/nvim/dbee/persistence.json and ~/.config/sqls/config.yml
+    let mut seen = HashSet::new();
+    let mut results = Vec::new();
+
     let nvim_path = default_nvim_dbee_persistence_path();
     if let Ok(data) = fs::read_to_string(&nvim_path) {
         if let Ok(items) = serde_json::from_str::<Vec<DbeePersistenceItem>>(&data) {
@@ -120,7 +121,6 @@ pub fn load_all_connections() -> Vec<ConnectionParams> {
         }
     }
 
-    // 3. Fallback: ~/.config/sqls/config.yml
     let sqls_path = default_sqls_config_path();
     if let Ok(data) = fs::read_to_string(&sqls_path) {
         if let Ok(cfg) = serde_yaml::from_str::<SqlsConfig>(&data) {
@@ -181,6 +181,23 @@ pub fn load_all_connections() -> Vec<ConnectionParams> {
         }
     }
 
+    // Auto-save to ~/.config/hornet/connections.json so Hornet has its own local config
+    if let Some(parent) = hornet_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let items_to_save: Vec<DbeePersistenceItem> = results
+        .iter()
+        .map(|p| DbeePersistenceItem {
+            id: p.id.clone(),
+            name: p.name.clone(),
+            url: p.url.clone(),
+            r#type: p.r#type.clone(),
+        })
+        .collect();
+    if let Ok(json) = serde_json::to_string_pretty(&items_to_save) {
+        let _ = fs::write(&hornet_path, json);
+    }
+
     results
 }
 
@@ -231,6 +248,41 @@ pub fn save_connection(param: &ConnectionParams) -> Result<(), String> {
     if let Some(parent) = nvim_path.parent() {
         if parent.exists() {
             let _ = save_to_file(&nvim_path);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn delete_connection(name_or_id: &str) -> Result<(), String> {
+    let hornet_path = default_hornet_connections_path();
+    let mut items = Vec::new();
+    if let Ok(data) = fs::read_to_string(&hornet_path) {
+        if let Ok(existing) = serde_json::from_str::<Vec<DbeePersistenceItem>>(&data) {
+            items = existing;
+        }
+    }
+
+    items.retain(|it| it.name != name_or_id && it.id != name_or_id);
+
+    if let Some(parent) = hornet_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let json = serde_json::to_string_pretty(&items).map_err(|e| e.to_string())?;
+    fs::write(&hornet_path, json).map_err(|e| e.to_string())?;
+
+    // Also sync delete to nvim-dbee persistence if that file exists
+    let nvim_path = default_nvim_dbee_persistence_path();
+    if nvim_path.exists() {
+        let mut nvim_items = Vec::new();
+        if let Ok(data) = fs::read_to_string(&nvim_path) {
+            if let Ok(existing) = serde_json::from_str::<Vec<DbeePersistenceItem>>(&data) {
+                nvim_items = existing;
+            }
+        }
+        nvim_items.retain(|it| it.name != name_or_id && it.id != name_or_id);
+        if let Ok(json) = serde_json::to_string_pretty(&nvim_items) {
+            let _ = fs::write(&nvim_path, json);
         }
     }
 

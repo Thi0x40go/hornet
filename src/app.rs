@@ -262,6 +262,27 @@ impl App {
         }
     }
 
+    pub async fn delete_selected_connection(&mut self) {
+        if let Some(idx) = self.drawer_state.selected() {
+            if idx < self.flat_nodes.len() {
+                let node = self.flat_nodes[idx].clone();
+                if let NodeType::Connection(id) = &node.node_type {
+                    let name = node.label.clone();
+                    let conn_id = id.clone();
+                    if self.active_conn_id == conn_id {
+                        self.active_conn_id.clear();
+                        self.query_result = None;
+                    }
+                    if let Ok(_) = self.db.delete_connection(&conn_id) {
+                        self.set_toast(format!("Deleted connection '{}'", name));
+                        self.load_connections().await;
+                        self.rebuild_flat_tree();
+                    }
+                }
+            }
+        }
+    }
+
     pub async fn load_connections(&mut self) {
         if let Ok(conns) = self.db.list_connections() {
             let mut conn_nodes = vec![TreeNode {
@@ -1000,8 +1021,19 @@ impl App {
 
     fn render_drawer(&mut self, frame: &mut Frame, area: Rect) {
         let border_color = if self.focus == FocusArea::Drawer { self.theme.border_active } else { self.theme.border_inactive };
+        let title_spans = if self.focus == FocusArea::Drawer {
+            vec![
+                Span::styled(" 󱃖 Explorer (1) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)),
+                Span::styled("[a: Add │ d: Del │ Enter: Open] ", Style::default().fg(self.theme.border_active)),
+            ]
+        } else {
+            vec![
+                Span::styled(" 󱃖 Explorer (1) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)),
+            ]
+        };
+
         let block = Block::default()
-            .title(Span::styled(" 󱃖 Explorer (1) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
+            .title(Line::from(title_spans))
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .border_style(Style::default().fg(border_color));
