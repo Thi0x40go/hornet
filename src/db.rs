@@ -524,13 +524,20 @@ fn format_pg_value(row: &PgRow, idx: usize) -> String {
 
     let type_name = row.column(idx).type_info().name();
     match type_name {
-        "BOOL" => row.try_get::<bool, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "INT2" => row.try_get::<i16, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "INT4" => row.try_get::<i32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "INT8" => row.try_get::<i64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "FLOAT4" => row.try_get::<f32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "FLOAT8" => row.try_get::<f64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
-        "TEXT" | "VARCHAR" | "CHAR" | "BPCHAR" | "NAME" => {
+        "BOOL" | "BOOLEAN" => row.try_get::<bool, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "INT2" | "SMALLINT" => row.try_get::<i16, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "INT4" | "INT" | "INTEGER" => row.try_get::<i32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "INT8" | "BIGINT" => row.try_get::<i64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "OID" => row.try_get::<sqlx::postgres::types::Oid, _>(idx).map(|v| v.0.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "FLOAT4" | "REAL" => row.try_get::<f32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "FLOAT8" | "DOUBLE PRECISION" => row.try_get::<f64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "NUMERIC" | "DECIMAL" => {
+            row.try_get::<rust_decimal::Decimal, _>(idx)
+                .map(|v| v.to_string())
+                .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
+                .unwrap_or_else(|_| "ERR".to_string())
+        }
+        "TEXT" | "VARCHAR" | "CHAR" | "BPCHAR" | "NAME" | "CITEXT" => {
             row.try_get::<String, _>(idx).unwrap_or_else(|_| "ERR".to_string())
         }
         "JSON" | "JSONB" => {
@@ -562,10 +569,8 @@ fn format_pg_value(row: &PgRow, idx: usize) -> String {
         }
         _ => {
             row.try_get::<String, _>(idx)
+                .or_else(|_| row.try_get::<rust_decimal::Decimal, _>(idx).map(|v| v.to_string()))
                 .or_else(|_| row.try_get::<i64, _>(idx).map(|v| v.to_string()))
-                .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
-                .or_else(|_| row.try_get::<bool, _>(idx).map(|v| v.to_string()))
-                .or_else(|_| row.try_get::<serde_json::Value, _>(idx).map(|v| v.to_string()))
                 .unwrap_or_else(|_| format!("<{}>", type_name))
         }
     }
@@ -589,6 +594,12 @@ fn format_mysql_value(row: &MySqlRow, idx: usize) -> String {
         "BIGINT" => row.try_get::<i64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
         "FLOAT" => row.try_get::<f32, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
         "DOUBLE" => row.try_get::<f64, _>(idx).map(|v| v.to_string()).unwrap_or_else(|_| "ERR".to_string()),
+        "DECIMAL" | "NEWDECIMAL" | "NUMERIC" => {
+            row.try_get::<rust_decimal::Decimal, _>(idx)
+                .map(|v| v.to_string())
+                .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
+                .unwrap_or_else(|_| "ERR".to_string())
+        }
         "VARCHAR" | "CHAR" | "TEXT" | "TINYTEXT" | "MEDIUMTEXT" | "LONGTEXT" => {
             row.try_get::<String, _>(idx).unwrap_or_else(|_| "ERR".to_string())
         }
@@ -608,9 +619,8 @@ fn format_mysql_value(row: &MySqlRow, idx: usize) -> String {
         }
         _ => {
             row.try_get::<String, _>(idx)
+                .or_else(|_| row.try_get::<rust_decimal::Decimal, _>(idx).map(|v| v.to_string()))
                 .or_else(|_| row.try_get::<i64, _>(idx).map(|v| v.to_string()))
-                .or_else(|_| row.try_get::<f64, _>(idx).map(|v| v.to_string()))
-                .or_else(|_| row.try_get::<bool, _>(idx).map(|v| v.to_string()))
                 .unwrap_or_else(|_| format!("<{}>", type_name))
         }
     }

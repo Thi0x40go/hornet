@@ -36,4 +36,7 @@ sqlx = { version = "0.8", default-features = false, features = [
     "chrono",
     "json",
     "uuid",
+    "rust_decimal",
 ] }
+rust_decimal = "1.43.0"
+

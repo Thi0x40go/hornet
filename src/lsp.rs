@@ -282,7 +282,11 @@ impl LspClient {
             .await
             .map_err(|e| e.to_string())?;
 
-        resp_rx.await.map_err(|_| "LSP dropped".to_string())?
+        match tokio::time::timeout(std::time::Duration::from_millis(150), resp_rx).await {
+            Ok(Ok(res)) => res,
+            Ok(Err(_)) => Err("LSP dropped channel".to_string()),
+            Err(_) => Err("LSP timeout".to_string()),
+        }
     }
 
     async fn notify(&self, method: &str, params: Value) -> Result<(), String> {

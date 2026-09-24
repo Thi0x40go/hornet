@@ -43,21 +43,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new(lsp).await;
+    let mut needs_redraw = true;
 
     // Main event loop
     loop {
-        terminal.draw(|f| app.render(f))?;
+        if needs_redraw {
+            terminal.draw(|f| app.render(f))?;
+            needs_redraw = false;
+        }
 
         if app.should_quit {
             break;
         }
 
-        if event::poll(Duration::from_millis(30))? {
-            if let Event::Key(key) = event::read()? {
-                // Global quit
-                if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') && !app.show_copy_menu {
-                    break;
-                }
+        let poll_dur = if app.is_executing || app.toast_msg.is_some() {
+            Duration::from_millis(40)
+        } else {
+            Duration::from_millis(200)
+        };
+
+        if event::poll(poll_dur)? {
+            match event::read()? {
+                Event::Key(key) => {
+                    needs_redraw = true;
+
+                    // Global quit
+                    if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') && !app.show_copy_menu {
+                        break;
+                    }
 
                 // Autocomplete Popup handling
                 if app.show_completions {
@@ -618,7 +631,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             VimMode::Insert => {
                                 // Trigger autocompletion on Ctrl+Space
                                 if key.modifiers.contains(KeyModifiers::CONTROL) && (key.code == KeyCode::Char(' ') || key.code == KeyCode::Null) {
-                                    app.trigger_completions().await;
+                                    app.trigger_completions(true).await;
                                     continue;
                                 }
 
@@ -685,7 +698,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             line.remove(app.cursor_col - 1);
                                             app.editor_lines[app.cursor_row] = line;
                                             app.cursor_col -= 1;
-                                            app.trigger_completions().await;
+                                            app.trigger_completions(false).await;
                                         } else if app.cursor_row > 0 {
                                             let cur_line = app.editor_lines.remove(app.cursor_row);
                                             app.cursor_row -= 1;
@@ -716,7 +729,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         line.insert(app.cursor_col, c);
                                         app.editor_lines[app.cursor_row] = line;
                                         app.cursor_col += 1;
-                                        app.trigger_completions().await;
+                                        app.trigger_completions(false).await;
                                     }
                                     _ => {}
                                 }
@@ -792,8 +805,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+            Event::Resize(_, _) => {
+                needs_redraw = true;
+            }
+            _ => {}
         }
+    } else if app.is_executing || app.toast_msg.is_some() {
+        needs_redraw = true;
     }
+}
 
     // Cleanup terminal
     disable_raw_mode()?;

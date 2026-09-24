@@ -105,6 +105,7 @@ pub struct App {
     pub table_state: TableState,
     pub selected_col: usize,
     pub col_offset: usize,
+    pub row_offset: usize,
     pub col_widths: Vec<u16>,
     pub is_executing: bool,
 
@@ -188,6 +189,7 @@ impl App {
             table_state: TableState::default(),
             selected_col: 0,
             col_offset: 0,
+            row_offset: 0,
             col_widths: Vec::new(),
             is_executing: false,
             show_copy_menu: false,
@@ -273,13 +275,6 @@ impl App {
 
             for c in &conns {
                 let id = c.id.clone();
-                // Check health in background
-                if let Ok(ping) = self.db.ping(&id).await {
-                    self.conn_health.insert(id.clone(), (ping.online, ping.latency_ms));
-                } else {
-                    self.conn_health.insert(id.clone(), (false, 0));
-                }
-
                 if self.active_conn_id.is_empty() {
                     self.active_conn_id = id.clone();
                 }
@@ -299,6 +294,10 @@ impl App {
             }
 
             if !self.active_conn_id.is_empty() {
+                let active = self.active_conn_id.clone();
+                if let Ok(ping) = self.db.ping(&active).await {
+                    self.conn_health.insert(active.clone(), (ping.online, ping.latency_ms));
+                }
                 self.load_structure_for_active().await;
             }
         }
@@ -606,7 +605,7 @@ impl App {
         }
     }
 
-    pub async fn trigger_completions(&mut self) {
+    pub async fn trigger_completions(&mut self, query_lsp: bool) {
         let cur_line = self.editor_lines.get(self.cursor_row).cloned().unwrap_or_default();
         let col = self.cursor_col.min(cur_line.len());
         let before_cursor = &cur_line[..col];
@@ -621,20 +620,28 @@ impl App {
             .rev()
             .collect();
 
+        // For automatic typing, require at least 2 characters to avoid popping up on single chars or spaces
+        if !query_lsp && prefix.len() < 2 {
+            self.show_completions = false;
+            return;
+        }
+
         self.completion_prefix = prefix.clone();
         let lower_prefix = prefix.to_lowercase();
         let mut items = Vec::new();
         let mut seen = HashSet::new();
 
-        // 1. LSP Completions
-        if let Some(lsp) = &self.lsp {
-            let doc_text = self.editor_lines.join("\n");
-            lsp.update_document(&doc_text).await;
-            let lsp_items = lsp.get_completions(self.cursor_row, self.cursor_col).await;
-            for it in lsp_items {
-                if !seen.contains(&it.label) {
-                    seen.insert(it.label.clone());
-                    items.push(it);
+        // 1. LSP Completions (only when requested via query_lsp)
+        if query_lsp {
+            if let Some(lsp) = &self.lsp {
+                let doc_text = self.editor_lines.join("\n");
+                lsp.update_document(&doc_text).await;
+                let lsp_items = lsp.get_completions(self.cursor_row, self.cursor_col).await;
+                for it in lsp_items {
+                    if !seen.contains(&it.label) {
+                        seen.insert(it.label.clone());
+                        items.push(it);
+                    }
                 }
             }
         }
@@ -787,6 +794,7 @@ impl App {
                 self.table_state.select(Some(0));
                 self.selected_col = 0;
                 self.col_offset = 0;
+                self.row_offset = 0;
             }
             Err(e) => {
                 self.is_executing = false;
@@ -1281,7 +1289,21 @@ impl App {
             });
             let header = Row::new(header_cells).height(1);
 
-            let rows: Vec<Row> = res.rows.iter().map(|r| {
+            let visible_rows = (area.height.saturating_sub(4) as usize).max(1);
+            let sel_row = self.table_state.selected().unwrap_or(0);
+
+            // Keep sel_row within visible row window
+            if sel_row < self.row_offset {
+                self.row_offset = sel_row;
+            } else if sel_row >= self.row_offset + visible_rows {
+                self.row_offset = sel_row.saturating_sub(visible_rows).saturating_add(1);
+            }
+
+            let start_row = self.row_offset.min(res.rows.len());
+            let end_row = (start_row + visible_rows).min(res.rows.len());
+
+            let visible_data = &res.rows[start_row..end_row];
+            let rows: Vec<Row> = visible_data.iter().map(|r| {
                 let cells: Vec<Cell> = (start_col..end_col).map(|orig_col| {
                     let val = r.get(orig_col).map(|s| s.as_str()).unwrap_or("");
                     if val == "NULL" {
@@ -1303,7 +1325,11 @@ impl App {
                 .row_highlight_style(Style::default().bg(self.theme.table_selected_bg).fg(self.theme.table_selected_fg).add_modifier(Modifier::BOLD))
                 .highlight_symbol("▶ ");
 
-            frame.render_stateful_widget(table, area, &mut self.table_state);
+            let mut local_state = TableState::default();
+            if !visible_data.is_empty() {
+                local_state.select(Some(sel_row.saturating_sub(start_row)));
+            }
+            frame.render_stateful_widget(table, area, &mut local_state);
         } else {
             let block = Block::default()
                 .title(Span::styled(" 󱃖 Results (3) ", Style::default().fg(self.theme.title).add_modifier(Modifier::BOLD)))
