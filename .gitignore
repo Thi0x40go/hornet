@@ -26,6 +26,9 @@ hornet-server
 connections.json
 persistence*.json
 *.sql.tmp
+HANDOFF.md
+handoff.md
+*.bak
 
 # Logs
 *.log
